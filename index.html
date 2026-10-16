@@ -1,0 +1,2323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#b1a99a">
+<title>Afterimage 3D scene prototype V2</title>
+<style>
+
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { width:100%; height:100%; margin:0; overflow:hidden; background:#b1a99a; }
+  body { overscroll-behavior:none; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; cursor:grab; outline:none; }
+  canvas:active { cursor:grabbing; }
+  #navigation-hint { position:fixed; z-index:2; top:calc(max(20px,env(safe-area-inset-top)) + 24px); left:max(22px,env(safe-area-inset-left)); color:#eee9df; font:12px/1.4 system-ui,sans-serif; text-shadow:0 1px 3px #24211c99; pointer-events:none; user-select:none; }
+  #fps { position:fixed; z-index:2; top:max(20px,env(safe-area-inset-top)); left:max(22px,env(safe-area-inset-left)); color:#eee9df; font:12px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace; font-variant-numeric:tabular-nums; text-shadow:0 1px 3px #24211c99; pointer-events:none; user-select:none; }
+  .controls { position:fixed; z-index:2; left:50%; bottom:max(18px, env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(1440px, calc(100% - 36px)); max-height:calc(100dvh - 92px); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#eee9df66 transparent; display:grid; grid-template-columns:64px repeat(6,minmax(0,1fr)) 102px; gap:12px; align-items:start; padding:4px 3px; --slider-height:28px; }
+  .control-group { min-width:0; border:1px solid #eee9df42; border-radius:9px; background:#3d352b20; color:#eee9df; box-shadow:0 2px 12px #28231c08; }
+  .control-group summary { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:36px; padding:8px 11px; list-style:none; color:#f3eee5; font:600 11px/1.4 system-ui,sans-serif; letter-spacing:.055em; text-shadow:0 1px 3px #24211c88; cursor:pointer; user-select:none; touch-action:manipulation; }
+  .control-group summary::-webkit-details-marker { display:none; }
+  .control-group summary::after { content:"+"; color:#eee9dfb8; font:400 16px/1 system-ui,sans-serif; }
+  .control-group[open] summary::after { content:"−"; }
+  .control-group summary:focus-visible { outline:2px solid #eee9df; outline-offset:-3px; border-radius:8px; }
+  .group-body { display:grid; gap:10px; padding:3px 11px 11px; }
+  .control { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:0 6px; min-width:0; }
+  .control label { color:#eee9df; font:10px/1.45 system-ui,sans-serif; text-shadow:0 1px 3px #24211caa; user-select:none; }
+  .control output { color:#f1ece3; font:10px/1.4 system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; text-shadow:0 1px 3px #24211c99; pointer-events:none; user-select:none; }
+  .reset-button { min-height:28px; margin:0; padding:4px 9px; border:1px solid #eee9df55; border-radius:5px; background:#302a201f; color:#eee9df; font:10px/1.4 system-ui,sans-serif; text-shadow:0 1px 3px #24211c99; cursor:pointer; touch-action:manipulation; }
+  .control .reset-button { min-height:23px; padding:2px 5px; font-size:9px; }
+  .reset-button:hover { background:#eee9df26; border-color:#eee9df99; }
+  .reset-button:focus-visible { outline:2px solid #eee9df; outline-offset:3px; }
+  .reset-button:active { background:#302a2055; }
+  .panel-actions { display:flex; flex-direction:column; gap:8px; align-items:stretch; min-width:0; }
+  .panel-actions .reset-button { white-space:nowrap; min-height:32px; }
+  .sun-disc-toggle { display:grid; justify-items:center; align-content:center; gap:6px; min-height:56px; width:64px; padding:6px; white-space:nowrap; }
+  .sun-disc-toggle::before { content:""; width:8px; height:8px; border:1px solid currentColor; border-radius:50%; }
+  .sun-disc-toggle[aria-pressed="true"] { border-color:#eee9df99; background:#eee9df26; }
+  .sun-disc-toggle[aria-pressed="true"]::before { background:currentColor; box-shadow:0 0 6px #eee9df66; }
+  input[type=range] { grid-column:1 / -1; -webkit-appearance:none; appearance:none; width:100%; min-width:0; height:var(--slider-height); margin:0; padding:0; border:0; outline:none; background:transparent; cursor:ew-resize; touch-action:none; --fill:50%; }
+  input[type=range]::-webkit-slider-runnable-track { height:2px; border-radius:2px; background:linear-gradient(to right, rgba(54,48,38,.68) 0 var(--fill), rgba(238,233,223,.28) var(--fill) 100%); }
+  input[type=range]::-moz-range-track { height:2px; border-radius:2px; background:rgba(238,233,223,.28); }
+  input[type=range]::-moz-range-progress { height:2px; background:rgba(54,48,38,.68); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; margin-top:-4px; border-radius:50%; background:#efebe1; border:1px solid rgba(56,48,37,.48); box-shadow:0 1px 5px #332a2420; transition:box-shadow .2s, transform .2s; }
+  input[type=range]::-moz-range-thumb { width:9px; height:9px; border-radius:50%; background:#efebe1; border:1px solid rgba(56,48,37,.48); }
+  input[type=range]:hover::-webkit-slider-thumb { transform:scale(1.2); }
+  input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 5px #f3ede660; }
+  input[type=range]:focus-visible::-moz-range-thumb { box-shadow:0 0 0 5px #f3ede660; }
+  @media(max-width:1100px) { .controls { width:min(600px, calc(100% - 32px)); grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; max-height:calc(100dvh - 92px); } .sun-disc-toggle { grid-column:1; grid-row:1; } .panel-actions { grid-column:2; grid-row:1; justify-self:end; width:108px; } .control label,.control output { font-size:11px; } }
+  @media(max-width:520px) { .controls { width:calc(100% - 24px); grid-template-columns:minmax(0,1fr); gap:10px; bottom:max(12px,env(safe-area-inset-bottom)); max-height:calc(100dvh - 92px); --slider-height:32px; } .sun-disc-toggle { grid-column:1; grid-row:1; } .panel-actions { grid-column:1; grid-row:1; } .control-group summary { min-height:38px; } .group-body { gap:8px; } .control .reset-button { min-height:28px; padding:3px 8px; } }
+  @media(max-height:480px) { .controls { bottom:max(8px,env(safe-area-inset-bottom)); max-height:calc(100dvh - 72px); } }
+  @media(prefers-reduced-motion:reduce) { input[type=range]::-webkit-slider-thumb { transition:none; } }
+
+  #error { position:fixed; inset:0; display:none; place-items:center; padding:32px; color:#39382f; font:14px/1.8 system-ui,sans-serif; text-align:center; white-space:pre-line; }
+</style>
+</head>
+<body>
+<canvas id="scene" tabindex="0" aria-label="沙雾中的金属方块和红色小球。W、A、S、D 移动小球，视角跟随小球。拖动旋转，滚轮缩放，双指缩放。方向键旋转，加减键缩放。"></canvas>
+<div id="navigation-hint">W A S D · Move & leave tracks　Drag · Orbit　Scroll · Zoom</div>
+<output id="fps" aria-label="实际渲染帧率">— FPS</output>
+<div class="controls" role="group" aria-label="Scene Controls">
+  <button id="sun-disc-toggle" class="reset-button sun-disc-toggle" type="button" aria-label="Hide Sun Disc" aria-pressed="true" aria-controls="scene" title="Hide Sun Disc">Sun Disc</button>
+  <details id="sun-group" class="control-group" open>
+    <summary>Sun</summary>
+    <div class="group-body">
+      <div class="control">
+        <label for="sun-x">X Position</label>
+        <output id="sun-x-value" for="sun-x" aria-hidden="true">58.8</output>
+        <button class="reset-button" type="button" data-reset="sun-x" aria-label="Reset Sun X Position">Reset</button>
+        <input id="sun-x" type="range" min="-100" max="100" step="0.1" value="58.8" aria-label="Sun X Position" data-unit="">
+      </div>
+      <div class="control">
+        <label for="sun-y">Y Position</label>
+        <output id="sun-y-value" for="sun-y" aria-hidden="true">61.4</output>
+        <button class="reset-button" type="button" data-reset="sun-y" aria-label="Reset Sun Y Position">Reset</button>
+        <input id="sun-y" type="range" min="-100" max="100" step="0.1" value="61.4" aria-label="Sun Y Position" data-unit="">
+      </div>
+      <div class="control">
+        <label for="sun-z">Z Position</label>
+        <output id="sun-z-value" for="sun-z" aria-hidden="true">-52.7</output>
+        <button class="reset-button" type="button" data-reset="sun-z" aria-label="Reset Sun Z Position">Reset</button>
+        <input id="sun-z" type="range" min="-100" max="100" step="0.1" value="-52.7" aria-label="Sun Z Position" data-unit="">
+      </div>
+      <div class="control">
+        <label for="sun-disc-size">Disc Size</label>
+        <output id="sun-disc-size-value" for="sun-disc-size" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="sun-disc-size" aria-label="Reset Sun Disc Size">Reset</button>
+        <input id="sun-disc-size" type="range" min="10" max="500" step="1" value="100" aria-label="Sun Disc Size" data-unit="%" title="Visible sun disc size. 100% is the original size.">
+      </div>
+    </div>
+  </details>
+  <details id="fog-group" class="control-group" open>
+    <summary>Fog</summary>
+    <div class="group-body">
+      <div class="control">
+        <label for="fog">Density</label>
+        <output id="fog-value" for="fog" aria-hidden="true">46.0%</output>
+        <button class="reset-button" type="button" data-reset="fog" aria-label="Reset Fog Density">Reset</button>
+        <input id="fog" type="range" min="0" max="100" step="0.1" value="46" aria-label="Fog Density" data-unit="%">
+      </div>
+      <div class="control">
+        <label for="fog-hue">Hue</label>
+        <output id="fog-hue-value" for="fog-hue" aria-hidden="true">35.0°</output>
+        <button class="reset-button" type="button" data-reset="fog-hue" aria-label="Reset Fog Hue">Reset</button>
+        <input id="fog-hue" type="range" min="0" max="360" step="0.1" value="35" aria-label="Fog Hue" data-unit="°">
+      </div>
+      <div class="control">
+        <label for="fog-saturation">Saturation</label>
+        <output id="fog-saturation-value" for="fog-saturation" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="fog-saturation" aria-label="Reset Fog Saturation">Reset</button>
+        <input id="fog-saturation" type="range" min="0" max="200" step="0.1" value="100" aria-label="Fog Saturation" data-unit="%">
+      </div>
+      <div class="control">
+        <label for="fog-brightness">Brightness</label>
+        <output id="fog-brightness-value" for="fog-brightness" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="fog-brightness" aria-label="Reset Fog Brightness">Reset</button>
+        <input id="fog-brightness" type="range" min="0" max="200" step="0.1" value="100" aria-label="Fog Brightness" data-unit="%">
+      </div>
+    </div>
+  </details>
+  <details id="tyndall-group" class="control-group" open>
+    <summary>Tyndall</summary>
+    <div class="group-body">
+      <div class="control">
+        <label for="shaft-size">Shaft Size</label>
+        <output id="shaft-size-value" for="shaft-size" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="shaft-size" aria-label="Reset Tyndall Shaft Size">Reset</button>
+        <input id="shaft-size" type="range" min="20" max="300" step="0.1" value="100" aria-label="Tyndall Shaft Size" data-unit="%">
+      </div>
+      <div class="control">
+        <label for="shaft-density">Shaft Density</label>
+        <output id="shaft-density-value" for="shaft-density" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="shaft-density" aria-label="Reset Tyndall Shaft Density">Reset</button>
+        <input id="shaft-density" type="range" min="0" max="200" step="0.1" value="100" aria-label="Tyndall Shaft Density" data-unit="%">
+      </div>
+      <div class="control">
+        <label for="shaft-opacity">Shaft Opacity</label>
+        <output id="shaft-opacity-value" for="shaft-opacity" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="shaft-opacity" aria-label="Reset Tyndall Shaft Opacity">Reset</button>
+        <input id="shaft-opacity" type="range" min="0" max="200" step="0.1" value="100" aria-label="Tyndall Shaft Opacity" data-unit="%">
+      </div>
+      <div class="control">
+        <label for="shaft-position">Shaft Position</label>
+        <output id="shaft-position-value" for="shaft-position" aria-hidden="true">0.0</output>
+        <button class="reset-button" type="button" data-reset="shaft-position" aria-label="Reset Tyndall Shaft Position">Reset</button>
+        <input id="shaft-position" type="range" min="-50" max="50" step="0.1" value="0" aria-label="Tyndall Shaft Position" data-unit="" title="光柱位置：沿固定方向平移整组光柱，0 保持原位置，不改变太阳方向。">
+      </div>
+    </div>
+  </details>
+  <details id="light-group" class="control-group" open>
+    <summary>Light</summary>
+    <div class="group-body">
+      <div class="control">
+        <label for="light-hue">Hue</label>
+        <output id="light-hue-value" for="light-hue" aria-hidden="true">34.7°</output>
+        <button class="reset-button" type="button" data-reset="light-hue" aria-label="Reset Light Hue">Reset</button>
+        <input id="light-hue" type="range" min="0" max="360" step="0.1" value="34.7" aria-label="Light Hue" data-unit="°">
+      </div>
+      <div class="control">
+        <label for="light-brightness">Brightness</label>
+        <output id="light-brightness-value" for="light-brightness" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="light-brightness" aria-label="Reset Light Brightness">Reset</button>
+        <input id="light-brightness" type="range" min="0" max="200" step="0.1" value="100" aria-label="Light Brightness" data-unit="%">
+      </div>
+      <div class="control">
+        <label for="light-saturation">Saturation</label>
+        <output id="light-saturation-value" for="light-saturation" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="light-saturation" aria-label="Reset Light Saturation">Reset</button>
+        <input id="light-saturation" type="range" min="0" max="200" step="0.1" value="100" aria-label="Light Saturation" data-unit="%">
+      </div>
+    </div>
+  </details>
+  <details id="environment-group" class="control-group" open>
+    <summary>Environment</summary>
+    <div class="group-body">
+      <div class="control">
+        <label for="environment-hue">Hue</label>
+        <output id="environment-hue-value" for="environment-hue" aria-hidden="true">0.0°</output>
+        <button class="reset-button" type="button" data-reset="environment-hue" aria-label="Reset Environment Hue">Reset</button>
+        <input id="environment-hue" type="range" min="-180" max="180" step="0.1" value="0" aria-label="Environment Hue" data-unit="°">
+      </div>
+      <div class="control">
+        <label for="environment-brightness">Brightness</label>
+        <output id="environment-brightness-value" for="environment-brightness" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="environment-brightness" aria-label="Reset Environment Brightness">Reset</button>
+        <input id="environment-brightness" type="range" min="0" max="200" step="0.1" value="100" aria-label="Environment Brightness" data-unit="%">
+      </div>
+      <div class="control">
+        <label for="environment-saturation">Saturation</label>
+        <output id="environment-saturation-value" for="environment-saturation" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="environment-saturation" aria-label="Reset Environment Saturation">Reset</button>
+        <input id="environment-saturation" type="range" min="0" max="200" step="0.1" value="100" aria-label="Environment Saturation" data-unit="%">
+      </div>
+      <div class="control">
+        <label for="environment-boundary">Boundary Distance</label>
+        <output id="environment-boundary-value" for="environment-boundary" aria-hidden="true">55.0</output>
+        <button class="reset-button" type="button" data-reset="environment-boundary" aria-label="Reset Environment Boundary Distance">Reset</button>
+        <input id="environment-boundary" type="range" min="55" max="275" step="1" value="55" aria-label="Environment Boundary Distance" data-unit="" title="Ground boundary distance from the cube. 55 is the original and nearest position.">
+      </div>
+    </div>
+  </details>
+  <details id="sand-group" class="control-group" open>
+    <summary>Sand</summary>
+    <div class="group-body">
+      <div class="control">
+        <label for="sand-push">Push Pile-Up</label>
+        <output id="sand-push-value" for="sand-push" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="sand-push" aria-label="Reset Sand Push Pile-Up">Reset</button>
+        <input id="sand-push" type="range" min="0" max="200" step="1" value="100" aria-label="Sand Push Pile-Up" data-unit="%" title="推沙量：红球将挤开的沙推到运动方向前方。">
+      </div>
+      <div class="control">
+        <label for="sand-cover">Fresh Sand</label>
+        <output id="sand-cover-value" for="sand-cover" aria-hidden="true">100.0%</output>
+        <button class="reset-button" type="button" data-reset="sand-cover" aria-label="Reset Fresh Sand Accumulation">Reset</button>
+        <input id="sand-cover" type="range" min="0" max="600" step="1" value="100" aria-label="Fresh Sand Accumulation" data-unit="%" title="自动覆盖上限 600%，为原上限的三倍；100% 为默认速度，0% 保留痕迹。">
+      </div>
+    </div>
+  </details>
+  <div class="panel-actions">
+    <button id="toggle-groups" class="reset-button" type="button" aria-label="Collapse All Control Groups" aria-expanded="true" aria-controls="sun-group fog-group tyndall-group light-group environment-group sand-group">Collapse All</button>
+    <button id="reset-all" class="reset-button reset-all" type="button" aria-label="Reset All Sliders">Reset All</button>
+    <button id="clear-tracks" class="reset-button" type="button" title="清除沙地上的所有轨迹" aria-label="Clear Sand Tracks">Clear Tracks</button>
+  </div>
+</div>
+<div id="error" role="alert"></div>
+<script type="module">
+/*
+ * A self-contained WebGPU ray tracer. No CDN, models, images or runtime dependencies.
+ * Actual secondary rays reflect the procedural ground / atmospheric environment.
+ * Beer–Lambert extinction + Henyey–Greenstein single scattering, cube shadow rays,
+ * and a world-space high cloud layer produce the light shafts (not a 2D overlay).
+ * GPU-budgeted dynamic resolution, reprojected HDR history, edge-aware denoising.
+ * Gamma-space FXAA -> FSR 1.0 EASU with fused detail reconstruction.
+ * Open in a WebGPU browser using localhost / HTTPS (file:// works in Chromium too).
+ */
+const canvas = document.querySelector('#scene');
+const inputs = [...document.querySelectorAll('input')];
+const controls = Object.fromEntries(inputs.map(input=>[input.id,input]));
+const sunDiscToggle = document.querySelector('#sun-disc-toggle');
+let sunDiscVisible = true;
+const errorBox = document.querySelector('#error');
+const fpsOutput = document.querySelector('#fps');
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const orbit = { yaw:0.70, pitch:0.29, radius:10.8 };
+const target = {...orbit};
+const CUBE_HALF = 0.91;
+const CUBE_EDGE = CUBE_HALF*2;
+const BALL_RADIUS = CUBE_EDGE/8; // Diameter is one quarter of the cube edge.
+const BALL_SPEED = CUBE_EDGE*1.5;
+// The arrow identifies the +Z face; measure four cube edges from that face.
+const ball = {x:0, y:BALL_RADIUS+desertBaseHeight(0,CUBE_HALF+4*CUBE_EDGE), z:CUBE_HALF+4*CUBE_EDGE};
+// Sparse CPU tiles remember visited ground. The GPU window scrolls without
+// losing old tracks, repeating the texture, or reducing its texel density.
+const SAND_TEXEL = 0.025;
+const SAND_TILE_SIZE = 128;
+const SAND_TILE_WORLD = SAND_TEXEL*SAND_TILE_SIZE;
+const SAND_GRID = 32;
+const SAND_OCCUPANCY_GRID = SAND_GRID*8;
+const SAND_MAP_SIZE = SAND_TILE_SIZE*SAND_GRID;
+const SAND_DEPTH = 0.12;
+const SAND_PILE_HEIGHT = 0.32;
+// One weathering rate for the whole signed profile: 95% covered in 30 seconds
+// at 100%, or 5 seconds at 600%. Bank and hollow keep the same smooth join.
+const SAND_COVER_RATE = 0.10;
+const SAND_GROOVE_RADIUS = BALL_RADIUS*1.05;
+const sandTiles = new Map();
+const activeSandTiles = new Set();
+const dirtySandTiles = new Set();
+const sandWindow = {x:0,z:0,ready:false};
+const sandStats = {segments:0,distance:0,revision:0,displaced:0,covered:0,activePixels:0};
+const ballPocket = {x:NaN,z:NaN,tiles:[],protectedPixels:0};
+let sandTerrainChanged=false;
+let lastSandTime=0;
+let previousNavigationMoving=false;
+let sandTexture, sandSampler, sandOccupancyTexture, sandWindowDirty = true;
+const sandOccupancy = new Uint8Array(SAND_GRID*SAND_GRID);
+const sandFineOccupancy = new Uint8Array(SAND_OCCUPANCY_GRID*SAND_OCCUPANCY_GRID);
+const movementKeys = new Set();
+const movementCodes = new Set(['KeyW','KeyA','KeyS','KeyD']);
+const pointers = new Map();
+let pinchDistance = 0, device, context, format, uniformBuffer, tracePipeline, temporalPipeline, displayPipeline;
+let postUniformBuffer, postLayout, fxaaPipeline, easuPipeline;
+let toneMapped, antiAliased, fxaaGroup, easuGroup;
+let history = [], geometry = [], rawRadiance, traceGroup, temporalGroups = [], displayGroups = [];
+let frame = 0, totalFrames = 0, completedFrames = 0, pendingFrames = 0;
+let renderWidth = 0, renderHeight = 0, scheduled = false, stopped = false;
+let outputWidth = 0, outputHeight = 0, resolutionEpoch = 0;
+let resizeNeeded = true, dirty = true, initialized = false, historyValid = false, generation = 0;
+let noiseTexture, noiseSampler, lastRenderTime = 0, cameraMotion = 0;
+let lastInteractionTime = -Infinity;
+const uniforms = new Float32Array(88);
+const previousUniforms = new Float32Array(88);
+const postUniforms = new Float32Array(12);
+const quality = {targetFps:100, minScale:0.5, maxScale:1, scale:0.7, averageMs:0, cpuMs:0, warmup:8, slow:0, fast:0, lastChange:0, changes:0, awaitingAdjustment:false};
+const gpuTimer = {enabled:false, slots:[]};
+const diagnostics = {backend:'WebGPU', ready:false, frames:0, samples:0, error:null, resolution:[0,0], outputResolution:[0,0], renderScale:1, targetFps:quality.targetFps, milliseconds:0, gpuMilliseconds:0, budgetMilliseconds:0, timingSource:'queue-latency', fps:0, resolutionChanges:0, passes:['Trace','Temporal','Denoise / Tone Map','FXAA 3.11','FSR EASU + detail'], adapterAttempts:[]};
+// A read-only diagnostics handle for testing; it adds no interface elements.
+Object.defineProperty(window,'sceneDiagnostics',{get:()=>({...diagnostics, camera:{...orbit,focus:{x:ball.x,y:BALL_RADIUS+desertBaseHeight(ball.x,ball.z),z:ball.z},eye:Array.from(uniforms.subarray(4,7)),forward:Array.from(uniforms.subarray(8,11)),motion:cameraMotion}, ball:{...ball,radius:BALL_RADIUS}, sandTracks:{...sandStats,tiles:sandTiles.size,texelSize:SAND_TEXEL,window:{...sandWindow}}, movementKeys:[...movementKeys], controls:inputs.map(i=>Number(i.value)), controlValues:Object.fromEntries(inputs.map(i=>[i.id,Number(i.value)])), sunDiscVisible})});
+
+const shader = /* wgsl */`
+struct Uniforms {
+  screen: vec4f,       // width, height, accumulated samples, random sequence
+  eye: vec4f,
+  forward: vec4f,
+  right: vec4f,
+  up: vec4f,
+  sun: vec4f,          // direction, radiance
+  atmosphere: vec4f,   // extinction, valid history, camera motion, sun disc visibility
+  previousEye: vec4f,
+  previousForward: vec4f,
+  previousRight: vec4f,
+  previousUp: vec4f,
+  jitter: vec4f,       // current pixel offset xy, previous pixel offset zw
+  fogColor: vec4f,     // luminance-normalized atmospheric tint, reserved
+  fogSettings: vec4f,  // fog saturation, fog brightness, shaft size, gap coverage
+  lightColor: vec4f,   // direct sunlight RGB, W visible sun disc size
+  skyHorizon: vec4f, // RGB sky tint, W ground boundary distance
+  skyZenith: vec4f,
+  shaftSettings: vec4f, // opacity, reserved, world-space position, reserved
+  ball: vec4f,         // sphere center xyz and radius
+  previousBall: vec4f,
+  sandMap: vec4f,      // world-space origin xz, window span, texel size
+  sandDynamics: vec4f, // terrain changed this frame, reserved
+}
+@group(0) @binding(0) var<uniform> u: Uniforms;
+@group(0) @binding(1) var noiseLattice: texture_2d<f32>;
+@group(0) @binding(2) var noiseSampler: sampler;
+@group(0) @binding(3) var sandTracks: texture_2d<f32>;
+@group(0) @binding(4) var sandSampler: sampler;
+@group(0) @binding(5) var sandOccupancy: texture_2d<f32>;
+const PI = 3.14159265359;
+const FAR = 1000000.0;
+const CENTER = vec3f(0.0, 0.91, 0.0);
+const HALF = vec3f(0.91);
+const BEVEL = 0.048;
+var<private> rng: u32;
+
+fn random() -> f32 {
+  rng = rng * 747796405u + 2891336453u;
+  let word = ((rng >> ((rng >> 28u) + 4u)) ^ rng) * 277803737u;
+  return f32((word >> 22u) ^ word) / 4294967296.0;
+}
+fn noise(p: vec2f) -> f32 {
+  let i = floor(p); let f = fract(p); let s = f*f*(3.0-2.0*f);
+  return textureSampleLevel(noiseLattice,noiseSampler,(i+s+128.5)/256.0,0.0).r;
+}
+fn fbm(p: vec2f) -> f32 {
+  return 0.57*noise(p) + 0.28*noise(p*2.03+11.7) + 0.15*noise(p*4.11-8.4);
+}
+fn boxSDF(p: vec3f) -> f32 {
+  let q = abs(p-CENTER) - (HALF-BEVEL);
+  return length(max(q,vec3f(0))) + min(max(q.x,max(q.y,q.z)),0.0) - BEVEL;
+}
+fn bounds(ro: vec3f, rd: vec3f, halfSize: vec3f) -> vec2f {
+  // sign(0) is zero; explicitly protect exactly parallel rays.
+  let safe = select(vec3f(-1e-7),vec3f(1e-7),rd>=vec3f(0));
+  let inv = 1.0 / select(rd,safe,abs(rd)<vec3f(1e-7));
+  let a = (CENTER-halfSize-ro)*inv; let b = (CENTER+halfSize-ro)*inv;
+  let lo = min(a,b); let hi = max(a,b);
+  return vec2f(max(lo.x,max(lo.y,lo.z)),min(hi.x,min(hi.y,hi.z)));
+}
+fn cubeHit(ro: vec3f, rd: vec3f) -> f32 {
+  let slab = bounds(ro,rd,HALF);
+  if slab.y < max(slab.x,0.001) { return FAR; }
+  var t = max(slab.x,0.001);
+  for(var i=0;i<24;i++) {
+    let d = boxSDF(ro+rd*t);
+    if d<0.00015 { return t; }
+    t += max(d,0.0001);
+    if t>slab.y+0.001 { break; }
+  }
+  return FAR;
+}
+fn cubeNormal(p: vec3f) -> vec3f {
+  let d=p-CENTER; let q=abs(d)-(HALF-BEVEL);
+  return normalize(sign(d)*max(q,vec3f(0.00001)));
+}
+fn cubeVisibility(p: vec3f, light: vec3f) -> f32 {
+  let h=bounds(p,light,HALF-0.008);
+  return select(1.0,0.0,h.y>max(h.x,0.002));
+}
+fn sphereHit(ro:vec3f,rd:vec3f) -> f32 {
+  let offset=ro-u.ball.xyz;
+  let b=dot(offset,rd);
+  let c=dot(offset,offset)-u.ball.w*u.ball.w;
+  let discriminant=b*b-c;
+  if discriminant<0.0 { return FAR; }
+  let root=sqrt(discriminant);
+  let near=-b-root;
+  if near>0.0001 { return near; }
+  let far=-b+root;
+  return select(FAR,far,far>0.0001);
+}
+fn sphereVisibility(p:vec3f,light:vec3f) -> f32 {
+  return select(1.0,0.0,sphereHit(p,light)<FAR);
+}
+fn desertBaseHeight(q:vec2f) -> f32 {
+  let a=0.5+0.5*sin(0.30*q.x+0.095*q.y+0.42*sin(0.12*q.y));
+  let b=0.5+0.5*sin(0.245*q.y-0.085*q.x+1.7);
+  return smoothstep(1.35,4.8,length(q))*(0.12+0.58*a*a+0.26*b*b);
+}
+fn desertBaseGradient(q:vec2f) -> vec2f {
+  let radius=max(length(q),0.000001);
+  let blend=clamp((radius-1.35)/3.45,0.0,1.0);
+  let fade=blend*blend*(3.0-2.0*blend);
+  let fadeSlope=6.0*blend*(1.0-blend)/3.45;
+  let phaseA=0.30*q.x+0.095*q.y+0.42*sin(0.12*q.y);
+  let phaseB=0.245*q.y-0.085*q.x+1.7;
+  let a=0.5+0.5*sin(phaseA);
+  let b=0.5+0.5*sin(phaseB);
+  let gradient=0.58*a*cos(phaseA)*vec2f(0.30,0.095+0.0504*cos(0.12*q.y))
+    +0.26*b*cos(phaseB)*vec2f(-0.085,0.245);
+  return fade*gradient+fadeSlope*(0.12+0.58*a*a+0.26*b*b)*q/radius;
+}
+fn sandWindowEdge(q:vec2f) -> f32 {
+  let local=q-u.sandMap.xy;
+  return min(min(local.x,local.y),min(u.sandMap.z-local.x,u.sandMap.z-local.y));
+}
+fn sandDisplacement(q:vec2f) -> f32 {
+  let uv=(q-u.sandMap.xy)/u.sandMap.z;
+  if any(uv<vec2f(0)) || any(uv>vec2f(1)) { return 0.0; }
+  return textureSampleLevel(sandTracks,sandSampler,uv,0.0).r*smoothstep(0.0,0.5,sandWindowEdge(q));
+}
+fn sandState(q:vec2f) -> vec2f {
+  let height=sandDisplacement(q);
+  return clamp(vec2f(max(-height,0.0)/0.12,max(height,0.0)/0.32),vec2f(0),vec2f(1));
+}
+fn sandHeight(q:vec2f) -> f32 {
+  return desertBaseHeight(q)+sandDisplacement(q);
+}
+fn trackGradient(q:vec2f) -> vec2f {
+  let e=u.sandMap.w;
+  let baseGradient=desertBaseGradient(q);
+  let local=q-u.sandMap.xy;
+  // The occupancy halo exceeds the Sobel/filter footprint. Empty cells have
+  // exactly zero displacement, so their eight large-heightmap reads are free.
+  if any(local<vec2f(-e)) || any(local>vec2f(u.sandMap.z+e)) { return baseGradient; }
+  let fine=clamp(vec2i(floor(local/0.4)),vec2i(0),vec2i(255));
+  if textureLoad(sandOccupancy,fine,0).r==0.0 { return baseGradient; }
+  // Sobel derivatives blend adjacent rows instead of accentuating texel parity.
+  let nw=sandDisplacement(q+vec2f(-e,-e));let n=sandDisplacement(q+vec2f(0,-e));
+  let ne=sandDisplacement(q+vec2f(e,-e));let w=sandDisplacement(q+vec2f(-e,0));
+  let east=sandDisplacement(q+vec2f(e,0));let sw=sandDisplacement(q+vec2f(-e,e));
+  let s=sandDisplacement(q+vec2f(0,e));let se=sandDisplacement(q+vec2f(e,e));
+  return baseGradient+vec2f(ne+2.0*east+se-nw-2.0*w-sw,
+    sw+2.0*s+se-nw-2.0*n-ne)/(8.0*e);
+}
+fn trackNormal(q:vec2f) -> vec3f {
+  let slope=trackGradient(q);
+  return normalize(vec3f(-slope.x,1.0,-slope.y));
+}
+fn sandLightVisibility(p:vec3f,light:vec3f) -> f32 {
+  var visibility=1.0;
+  var distance=0.03;
+  // The pushed heap and trench walls cast short soft shadows on the sand.
+  for(var i=0;i<6;i++) {
+    let q=p+light*distance;
+    visibility=min(visibility,smoothstep(-0.008,0.012,q.y-sandHeight(q.xz)));
+    distance=distance*1.65+0.014;
+  }
+  return visibility;
+}
+fn sandGridCell(local:vec2f,direction:vec2f) -> vec2i {
+  var cell=vec2i(floor(local));
+  let fraction=fract(local);
+  // Both the cell and its exit use this SAME grid coordinate. Rebuilding a
+  // world-space edge loses precision and can strand near-axis rays behind it.
+  if fraction.x==0.0 && direction.x<0.0 { cell.x-=1; }
+  if fraction.y==0.0 && direction.y<0.0 { cell.y-=1; }
+  return cell;
+}
+fn sandGridExit(local:vec2f,direction:vec2f,size:f32) -> f32 {
+  let fraction=fract(local);
+  var travel=vec2f(FAR);
+  if abs(direction.x)>0.00000001 {
+    let negativeDistance=select(fraction.x,1.0,fraction.x==0.0);
+    let distance=select(negativeDistance,1.0-fraction.x,direction.x>=0.0);
+    travel.x=distance*size/abs(direction.x);
+  }
+  if abs(direction.y)>0.00000001 {
+    let negativeDistance=select(fraction.y,1.0,fraction.y==0.0);
+    let distance=select(negativeDistance,1.0-fraction.y,direction.y>=0.0);
+    travel.y=distance*size/abs(direction.y);
+  }
+  return max(min(travel.x,travel.y),0.000002);
+}
+struct SandLocalField {
+  height:f32,
+  gradient:vec2f,
+  curvature:f32,
+  edgeSlope:f32,
+}
+fn sandCellSample(q:vec2f,direction:vec2f) -> SandLocalField {
+  let local=(q-u.sandMap.xy)/u.sandMap.w-vec2f(0.5);
+  let cell=sandGridCell(local,direction);let fraction=local-vec2f(cell);
+  let last=vec2i(textureDimensions(sandTracks))-vec2i(1);
+  let h00=textureLoad(sandTracks,clamp(cell,vec2i(0),last),0).r;
+  let h10=textureLoad(sandTracks,clamp(cell+vec2i(1,0),vec2i(0),last),0).r;
+  let h01=textureLoad(sandTracks,clamp(cell+vec2i(0,1),vec2i(0),last),0).r;
+  let h11=textureLoad(sandTracks,clamp(cell+vec2i(1),vec2i(0),last),0).r;
+  let edge=sandWindowEdge(q);let fade=smoothstep(0.0,0.5,edge);
+  let height=mix(mix(h00,h10,fraction.x),mix(h01,h11,fraction.x),fraction.y)*fade;
+  let gradient=vec2f(mix(h10-h00,h11-h01,fraction.y),mix(h01-h00,h11-h10,fraction.x))/u.sandMap.w;
+  // Bilinear height is exactly quadratic along a ray inside a texel cell.
+  let curvature=abs(2.0*(h11-h10-h01+h00)*direction.x*direction.y)/(u.sandMap.w*u.sandMap.w);
+  var edgeSlope=0.0;
+  if edge<0.5 {
+    let slopes=vec2f(max(abs(h10-h00),abs(h11-h01)),max(abs(h01-h00),abs(h11-h10)))/u.sandMap.w;
+    let fadeBound=3.0*max(max(abs(h00),abs(h10)),max(abs(h01),abs(h11)));
+    edgeSlope=dot(abs(direction),slopes+vec2f(fadeBound));
+  }
+  return SandLocalField(height,gradient*fade,curvature*fade,edgeSlope);
+}
+fn sandCurvatureRegion(q:vec2f,direction:vec2f,minimumAdvance:f32) -> vec2f {
+  // Beyond the plateau blend, ||Hessian(height)|| <= 0.084226 analytically.
+  // Keep a 0.10 bound and clip it before re-entering the higher-curvature blend.
+  // The outer guard absorbs f32 rounding and the minimum DDA advance.
+  let guardRadius=4.8+max(0.01,4.0*minimumAdvance);
+  let radial=dot(q,q)-guardRadius*guardRadius;
+  if radial<=0.0 { return vec2f(1.2,FAR); }
+  let horizontal=dot(direction,direction);
+  let projection=dot(q,direction);
+  if horizontal<0.00000001 || projection>=0.0 { return vec2f(0.10,FAR); }
+  let discriminant=projection*projection-horizontal*radial;
+  if discriminant<=0.0 { return vec2f(0.10,FAR); }
+  // This form avoids subtracting nearly equal roots near the circle boundary.
+  let entry=radial/(-projection+sqrt(discriminant));
+  return vec2f(0.10,entry);
+}
+fn sandBaseStep(clearance:f32,gradient:vec2f,rd:vec3f,extraCurvature:f32,baseCurvature:f32) -> f32 {
+  // Region-bounded curvature gives a conservative quadratic distance to dunes.
+  let derivative=rd.y-dot(gradient,rd.xz);
+  let curvature=baseCurvature*dot(rd.xz,rd.xz)+extraCurvature;
+  return 0.98*2.0*clearance/max(sqrt(derivative*derivative+2.0*curvature*clearance)-derivative,0.00000001);
+}
+fn sandBaseField(q:vec2f) -> vec3f {
+  let radius=length(q);
+  if radius<=1.35 { return vec3f(0); }
+  // Share the dune phases between height and derivative: six trigonometric
+  // evaluations instead of nine. Keep each original fade formula unchanged.
+  let phaseA=0.30*q.x+0.095*q.y+0.42*sin(0.12*q.y);
+  let phaseB=0.245*q.y-0.085*q.x+1.7;
+  let a=0.5+0.5*sin(phaseA);let b=0.5+0.5*sin(phaseB);
+  let shape=0.12+0.58*a*a+0.26*b*b;
+  let height=smoothstep(1.35,4.8,radius)*shape;
+  let blend=clamp((radius-1.35)/3.45,0.0,1.0);
+  let fade=blend*blend*(3.0-2.0*blend);
+  let fadeSlope=6.0*blend*(1.0-blend)/3.45;
+  let gradient=0.58*a*cos(phaseA)*vec2f(0.30,0.095+0.0504*cos(0.12*q.y))
+    +0.26*b*cos(phaseB)*vec2f(-0.085,0.245);
+  return vec3f(height,fade*gradient+fadeSlope*shape*q/radius);
+}
+fn sandHit(ro:vec3f,rd:vec3f,maximum:f32) -> f32 {
+  var t=0.0001;var end=maximum;
+  // Clip against the complete dune/track band, including horizontal reflections.
+  if abs(rd.y)>0.00000001 {
+    let bandA=(1.281-ro.y)/rd.y;let bandB=(-0.121-ro.y)/rd.y;
+    t=max(t,min(bandA,bandB));end=min(end,max(bandA,bandB));
+  } else if ro.y>1.281 || ro.y < -0.121 { return FAR; }
+  let horizontal=dot(rd.xz,rd.xz);let boundary=max(u.skyHorizon.w,55.0);
+  if horizontal>0.00000001 {
+    let projection=dot(ro.xz,rd.xz);let radial=dot(ro.xz,ro.xz)-boundary*boundary;
+    let discriminant=projection*projection-horizontal*radial;
+    if discriminant<0.0 { return FAR; }
+    let root=sqrt(discriminant);
+    t=max(t,(-projection-root)/horizontal);end=min(end,(-projection+root)/horizontal);
+  } else if length(ro.xz)>boundary { return FAR; }
+  if end<t { return FAR; }
+  var previousT=t;
+  for(var i=0;i<512;i++) {
+    // Advance by at least one representable f32 step at distant grid edges.
+    // A fixed micrometre step can round back to t and turn terrain into a miss.
+    let minimumAdvance=max(0.000002,t*0.0000002);
+    let p=ro+rd*t;let baseField=sandBaseField(p.xz);let base=baseField.x;
+    let curvatureRegion=sandCurvatureRegion(p.xz,rd.xz,minimumAdvance);
+    let coarseLocal=(p.xz-u.sandMap.xy)/3.2;
+    let tile=sandGridCell(coarseLocal,rd.xz);
+    let inside=all(tile>=vec2i(0)) && all(tile<vec2i(32));
+    var occupied=false;
+    var gridLocal=coarseLocal;
+    var gridSize=3.2;
+    // Mip 3 skips empty 3.2 m tiles; mip 0 narrows fine tracing to 0.4 m cells.
+    if inside {
+      if textureLoad(sandOccupancy,tile,3).r>0.0 {
+        gridLocal=(p.xz-u.sandMap.xy)/0.4;
+        let fine=clamp(sandGridCell(gridLocal,rd.xz),vec2i(0),vec2i(255));
+        gridSize=0.4;
+        occupied=textureLoad(sandOccupancy,fine,0).r>0.0;
+      }
+    }
+    let nearTracks=occupied && p.y-base<=0.321;
+    var clearance=p.y-base;var step=0.0;
+    if nearTracks {
+      let field=sandCellSample(p.xz,rd.xz);clearance-=field.height;
+      if field.edgeSlope>0.0 {
+        let slopeBound=abs(rd.y)+0.7*length(rd.xz)+field.edgeSlope;
+        step=0.96*max(clearance,0.0)/max(slopeBound,0.00000001);
+      } else {
+        step=sandBaseStep(max(clearance,0.0),baseField.yz+field.gradient,rd,field.curvature,curvatureRegion.x);
+      }
+      let local=(p.xz-u.sandMap.xy)/u.sandMap.w-vec2f(0.5);
+      step=min(step,sandGridExit(local,rd.xz,u.sandMap.w)+minimumAdvance);
+    } else {
+      // R16F rounds the 0.32 cap to 0.320068; leave a gap below the 0.321 gate.
+      let safeClearance=max(clearance-select(0.0,0.3201,occupied),0.0);
+      step=sandBaseStep(safeClearance,baseField.yz,rd,0.0,curvatureRegion.x);
+      step=min(step,sandGridExit(gridLocal,rd.xz,gridSize)+minimumAdvance);
+    }
+    step=min(step,curvatureRegion.y);
+    let epsilon=clamp(t*2.0*u.eye.w/u.screen.y*0.02,0.0003,0.0015);
+    // A positive clearance at the solid-object endpoint is not a terrain hit.
+    if t>=maximum && clearance>0.0 { return FAR; }
+    if clearance<=epsilon {
+      if clearance>=0.0 || previousT==t { return t; }
+      var a=previousT;var b=t;
+      for(var j=0;j<6;j++) {
+        let mid=(a+b)*0.5;let q=ro+rd*mid;
+        if q.y>sandHeight(q.xz) { a=mid; } else { b=mid; }
+      }
+      return (a+b)*0.5;
+    }
+    if t>=end { break; }
+    previousT=t;t=min(t+max(step,minimumAdvance),end);
+  }
+  return FAR;
+}
+struct Hit { t:f32, material:u32 }
+fn intersect(ro:vec3f,rd:vec3f) -> Hit {
+  var hit=Hit(FAR,0u);
+  let box=cubeHit(ro,rd);
+  if box<FAR && box<hit.t { hit=Hit(box,2u); }
+  let sphere=sphereHit(ro,rd);
+  if sphere<FAR && sphere<hit.t { hit=Hit(sphere,3u); }
+  // Analytic solids bound the expensive terrain search, including reflections.
+  let ground=sandHit(ro,rd,hit.t);
+  if ground<FAR && ground<=hit.t { hit=Hit(ground,1u); }
+  return hit;
+}
+fn cloudLight(p:vec3f, light:vec3f) -> f32 {
+  // Trace the sun ray to a high, broken cloud sheet. Its transmission is
+  // constant along each sun ray, giving coherent shafts in world space.
+  let height=max(14.0-p.y,0.0)/max(light.y,0.07);
+  if u.fogSettings.w<=0.0 { return 0.0; }
+  // Position translates the cloud sheet in world space.
+  // Zero preserves the original placement; size controls its spatial scale.
+  let projected=p.xz+light.xz*height-vec2f(0.8,0.6)*u.shaftSettings.z;
+  let q=projected*(0.17/max(u.fogSettings.z,0.2))+vec2f(4.1,1.8);
+  let cloud=0.68*noise(q*vec2f(2.4,0.65))+0.32*noise(q*3.7+8.0);
+  // Density controls the open fraction of the original broken cloud sheet.
+  // At 100% size/density, retain the original irregular shaft profile exactly.
+  let shift=(1.0-u.fogSettings.w)*0.22;
+  return (0.08+0.92*smoothstep(0.43+shift,0.66+shift,cloud))*smoothstep(0.0,0.15,u.fogSettings.w);
+}
+fn environment(rd:vec3f,showDisk:f32) -> vec3f {
+  let horizon=u.skyHorizon.xyz;
+  let zenith=u.skyZenith.xyz;
+  // A smooth gradient on both sides of the horizon avoids a visible crease.
+  let sky=mix(horizon,zenith,smoothstep(-0.12,0.70,rd.y));
+  let mu=max(dot(rd,u.sun.xyz),0.0);
+  let halo=pow(mu,16.0)*0.32+pow(mu,180.0)*0.65;
+  // Visibility affects the disc only; lighting, shadows and halo stay intact.
+  // Scale only the visible disc profile; 100% preserves the original edge.
+  let discScale=max(u.lightColor.w,0.1);
+  let discMu=1.0-(1.0-mu)/(discScale*discScale);
+  let disk=smoothstep(0.99945,0.99982,discMu)*8.0*showDisk*u.atmosphere.w;
+  return sky*(0.22+u.sun.w*0.13)+u.lightColor.xyz*(halo+disk)*u.sun.w;
+}
+fn sunSample() -> vec3f {
+  // Deterministic direct lighting stays attached to the scene during travel.
+  return u.sun.xyz;
+}
+fn sandNormal(p:vec3f,t:f32,macroSlope:vec2f,state:vec2f) -> vec3f {
+  // Analytic ripple slopes replace four expensive finite-difference terrain calls.
+  let q=p.xz;
+  let phase=dot(q,vec2f(0.61,0.37));
+  let warp=sin(phase)*0.55+noise(q*0.42)*2.7;
+  let warpGradient=cos(phase)*0.55*vec2f(0.61,0.37);
+  let footprint=max(t*2.0*u.eye.w/u.screen.y,0.0001);
+  let detail=1.0-smoothstep(0.07,0.24,footprint);
+  let gradient=cos(q.y*12.0+q.x*3.1+warp)*0.010*(vec2f(3.1,12.0)+warpGradient)
+    +cos(q.y*23.7+q.x*5.9+warp*1.8)*0.0025*(vec2f(5.9,23.7)+warpGradient*1.8)*detail;
+  let fade=1.0-smoothstep(12.0,48.0,t);
+  let rippleStrength=1.0-0.88*max(state.x,min(1.0,state.y*3.0));
+  let slope=gradient*fade*rippleStrength+macroSlope;
+  return normalize(vec3f(-slope.x,1.0,-slope.y));
+}
+fn shadowStrength() -> f32 {
+  return exp(-8.0*u.atmosphere.x);
+}
+fn fogShadow(visibility:f32) -> f32 {
+  return mix(1.0,visibility,shadowStrength());
+}
+fn sandRadiance(p:vec3f,rd:vec3f,t:f32,light:vec3f,showDisk:f32,macroSlope:vec2f,track:vec2f) -> vec3f {
+  // Anchor the clearing to the cube, so zooming never washes out its contact.
+  // Blend into the same sky BEFORE volume integration, including reflections.
+  // Preserve the original 45-unit transition width while moving it outward.
+  let boundary=max(u.skyHorizon.w,55.0);
+  let edgeFade=smoothstep(boundary-45.0,boundary,length(p.xz));
+  let background=environment(rd,showDisk);
+  if edgeFade>=1.0 { return background; }
+  let n=sandNormal(p,t,macroSlope,track);
+  let mottling=fbm(p.xz*0.75);
+  let pixelFootprint=max(t*2.0*u.eye.w/u.screen.y,0.0001);
+  let grain=(noise(p.xz*170.0)-0.5)*(1.0-smoothstep(0.003,0.015,pixelFootprint));
+  let albedo=(mix(vec3f(0.34,0.255,0.15),vec3f(0.60,0.46,0.28),mottling)
+    +grain*mix(0.10,0.055,track.x))*(1.0-0.12*track.x+0.025*track.y);
+  let footprint=length(max(abs(p.xz)-vec2f(0.83),vec2f(0)));
+  let sphereContact=length(p.xz-u.ball.xz)/max(u.ball.w,0.001);
+  let sphereAO=1.0-0.42*shadowStrength()*exp(-sphereContact*sphereContact*1.6);
+  let ao=(1.0-0.55*shadowStrength()*exp(-footprint*3.7))*sphereAO*(1.0-0.20*track.x);
+  var terrainVisibility=1.0;
+  let nearbyPile=max(sandState(p.xz+light.xz*0.18).y,sandState(p.xz+light.xz*0.36).y);
+  let shadowWeight=smoothstep(0.001,0.008,track.x+track.y+nearbyPile);
+  if shadowWeight>0.0 {
+    terrainVisibility=mix(1.0,sandLightVisibility(p+vec3f(0,0.004,0),light),shadowWeight);
+  }
+  let diffuse=max(dot(n,light),0.0)*fogShadow(cubeVisibility(p+vec3f(0,0.003,0),light)*sphereVisibility(p+vec3f(0,0.003,0),light)*terrainVisibility);
+  let ambient=vec3f(0.32,0.35,0.38)*(0.14+u.sun.w*0.075)*ao;
+  let h=normalize(light-rd);
+  let sparkle=pow(max(dot(n,h),0.0),90.0)*0.018;
+  let sand=albedo*(ambient+u.lightColor.xyz*u.sun.w*diffuse*0.42)+u.lightColor.xyz*sparkle*u.sun.w*diffuse;
+  return mix(sand,background,edgeFade);
+}
+fn ballRadiance(p:vec3f,rd:vec3f,light:vec3f) -> vec3f {
+  let n=normalize(p-u.ball.xyz);
+  let albedo=vec3f(0.72,0.012,0.018);
+  let visibility=fogShadow(cubeVisibility(p+n*0.001,light));
+  let diffuse=max(dot(n,light),0.0)*visibility;
+  let groundOcclusion=mix(1.0,mix(0.48,1.0,smoothstep(-0.85,0.45,n.y)),0.15+0.85*shadowStrength());
+  let ambient=vec3f(0.34,0.37,0.40)*(0.24+u.sun.w*0.095)*groundOcclusion;
+  let h=normalize(light-rd);
+  let specular=pow(max(dot(n,h),0.0),60.0)*0.075*visibility;
+  return albedo*(ambient+u.lightColor.xyz*u.sun.w*diffuse*0.60)+u.lightColor.xyz*u.sun.w*specular;
+}
+fn hg(mu:f32,g:f32) -> f32 {
+  return (1.0-g*g)/(4.0*PI*pow(max(1.0+g*g-2.0*g*mu,0.001),1.5));
+}
+fn density(p:vec3f) -> f32 {
+  let layers=exp(-max(p.y,0.0)*0.11);
+  let wisps=noise(p.xz*0.24+vec2f(p.y*0.14,-p.y*0.10));
+  let clearing=0.60+0.40*smoothstep(1.8,6.5,length(p-CENTER));
+  return u.atmosphere.x*layers*(0.60+0.60*wisps)*clearing;
+}
+// RGB: in-scattered radiance, A: transmittance to the surface.
+fn volume(ro:vec3f,rd:vec3f,end:f32,steps:u32,jitter:f32) -> vec4f {
+  if u.atmosphere.x<0.00001 {return vec4f(0,0,0,1);}
+  let reach=min(end,70.0);
+  let stepLength=reach/f32(steps);
+  let phase=hg(dot(rd,u.sun.xyz),0.46);
+  let ambient=vec3f(0.33,0.37,0.42)*(0.16+u.sun.w*0.065);
+  let sunCoefficient=u.atmosphere.x*0.28/max(u.sun.y,0.15);
+  let sunLight=u.lightColor.xyz*(u.sun.w*phase*5.0*u.shaftSettings.x);
+  // Color grading is linear until the final non-negative clamp. Grade the
+  // ambient/sun bases once, preserving all density and shadow samples below.
+  let ambientColored=ambient*u.fogColor.xyz;
+  let sunColored=sunLight*u.fogColor.xyz;
+  let lumaWeights=vec3f(0.2126,0.7152,0.0722);
+  let ambientScatter=mix(vec3f(dot(ambientColored,lumaWeights)),ambientColored,u.fogSettings.x);
+  let sunScatter=mix(vec3f(dot(sunColored,lumaWeights)),sunColored,u.fogSettings.x);
+  let directShadowWeight=shadowStrength();
+  var transmission=1.0; var light=vec3f(0);
+  for(var i=0u;i<steps;i++) {
+    let t=(f32(i)+jitter)*stepLength;
+    let p=ro+rd*t;
+    let extinction=density(p);
+    let attenuation=exp(-extinction*stepLength);
+    let visibility=mix(1.0,cubeVisibility(p,u.sun.xyz)*sphereVisibility(p,u.sun.xyz),directShadowWeight)*cloudLight(p,u.sun.xyz);
+    let sunTransmission=exp(-sunCoefficient*max(9.0-p.y,0.0));
+    let scattered=max(ambientScatter+sunScatter*(visibility*sunTransmission),vec3f(0))*u.fogSettings.y;
+    light+=transmission*(1.0-attenuation)*scattered*0.94;
+    transmission*=attenuation;
+    if transmission<0.008 { break; }
+  }
+  return vec4f(light,transmission);
+}
+struct TraceOutput {
+  @location(0) color: vec4f,
+  @location(1) geometry: vec4f,
+}
+fn radiance(ro:vec3f,rd:vec3f) -> TraceOutput {
+  let hit=intersect(ro,rd); let sun=sunSample();
+  var normal=rd;
+  var depth=-1.0;
+  var surface=environment(rd,1.0);
+  if hit.material!=0u {depth=min(hit.t*dot(rd,u.forward.xyz),60000.0);}
+  if hit.material==1u {
+    let p=ro+rd*hit.t;let slope=trackGradient(p.xz);let track=sandState(p.xz);
+    normal=normalize(vec3f(-slope.x,1.0,-slope.y));
+    surface=sandRadiance(p,rd,hit.t,sun,1.0,slope,track);
+  } else if hit.material==2u {
+    let p=ro+rd*hit.t;
+    var n=cubeNormal(p);
+    normal=n;
+    // Fine brushed alloy, small enough to preserve the broad metallic reflection.
+    let footprint=max(hit.t*2.0*u.eye.w/u.screen.y,0.0001);
+    let fineDetail=1.0-smoothstep(0.0006,0.0035,footprint);
+    let brush=(noise(vec2f(p.x+p.z,p.y)*vec2f(26.0,620.0))-0.5)*fineDetail;
+    n=normalize(n+vec3f(brush*0.004,brush*0.012,brush*0.004));
+    // The world-space brushed normal supplies detail without temporal noise.
+    let reflected=reflect(rd,n);
+    let offset=p+n*0.003;
+    let secondary=intersect(offset,reflected);
+    var incoming=environment(reflected,0.0);
+    if secondary.material==1u {
+      let groundPoint=offset+reflected*secondary.t;
+      incoming=sandRadiance(groundPoint,reflected,secondary.t,sun,0.0,trackGradient(groundPoint.xz),sandState(groundPoint.xz));
+    } else if secondary.material==3u {
+      incoming=ballRadiance(offset+reflected*secondary.t,reflected,sun);
+    }
+    let reflectedFog=volume(offset,reflected,secondary.t,6u,0.5);
+    incoming=incoming*reflectedFog.w+reflectedFog.xyz;
+    let f0=vec3f(0.72,0.76,0.80);
+    let fresnel=f0+(vec3f(1)-f0)*pow(1.0-clamp(dot(n,-rd),0.0,1.0),5.0);
+    // Direct area-sun GGX term complements sampled secondary environment rays.
+    let h=normalize(sun-rd); let nh=max(dot(n,h),0.0);
+    let nl=max(dot(n,sun),0.0); let nv=max(dot(n,-rd),0.001);
+    let alpha=0.075; let a2=alpha*alpha;
+    let denom=nh*nh*(a2-1.0)+1.0;
+    let distribution=a2/(PI*denom*denom);
+    let geometryV=nv/(nv*(1.0-0.08)+0.08);
+    let geometryL=nl/(nl*(1.0-0.08)+0.08);
+    let specular=distribution*geometryV*geometryL/(4.0*nv+0.001);
+    surface=incoming*fresnel + u.lightColor.xyz*fresnel*min(specular,12.0)*u.sun.w*fogShadow(sphereVisibility(offset,sun))*0.55;
+    surface*=0.99+0.10*(noise(vec2f(p.x+p.z,p.y)*vec2f(5.0,900.0))-0.5)*fineDetail;
+  } else if hit.material==3u {
+    let p=ro+rd*hit.t;
+    normal=normalize(p-u.ball.xyz);
+    surface=ballRadiance(p,rd,sun);
+  }
+  let fog=volume(ro,rd,hit.t,20u,0.5);
+  return TraceOutput(vec4f(surface*fog.w+fog.xyz,1),vec4f(normal,depth));
+}
+@vertex fn vs(@builtin(vertex_index) index:u32) -> @builtin(position) vec4f {
+  let xy=vec2f(f32((index<<1u)&2u),f32(index&2u));
+  return vec4f(xy*2.0-1.0,0.0,1.0);
+}
+@fragment fn fs(@builtin(position) frag:vec4f) -> TraceOutput {
+  let pixel=vec2u(frag.xy);
+  rng=(pixel.x*1973u+pixel.y*9277u+u32(u.screen.w)*26699u)|1u;
+  let xy=(2.0*(frag.xy+u.jitter.xy)-u.screen.xy)/u.screen.y;
+  let ray=normalize(u.forward.xyz+u.right.xyz*xy.x*u.eye.w-u.up.xyz*xy.y*u.eye.w);
+  return radiance(u.eye.xyz,ray);
+}
+`;
+
+const temporalShader = /* wgsl */`
+struct Uniforms {
+  screen: vec4f,
+  eye: vec4f,
+  forward: vec4f,
+  right: vec4f,
+  up: vec4f,
+  sun: vec4f,
+  atmosphere: vec4f,
+  previousEye: vec4f,
+  previousForward: vec4f,
+  previousRight: vec4f,
+  previousUp: vec4f,
+  jitter: vec4f,
+  fogColor: vec4f,
+  fogSettings: vec4f,
+  lightColor: vec4f,   // RGB direct sunlight, W visible sun disc size
+  skyHorizon: vec4f, // RGB sky tint, W ground boundary distance
+  skyZenith: vec4f,
+  shaftSettings: vec4f,
+  ball: vec4f,
+  previousBall: vec4f,
+  sandMap: vec4f,
+  sandDynamics: vec4f,
+}
+@group(0) @binding(0) var<uniform> u: Uniforms;
+@group(0) @binding(1) var currentRadiance: texture_2d<f32>;
+@group(0) @binding(2) var currentGeometry: texture_2d<f32>;
+@group(0) @binding(3) var previousHistory: texture_2d<f32>;
+@group(0) @binding(4) var previousGeometry: texture_2d<f32>;
+
+@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  return vec4f(vec2f(f32((i << 1u) & 2u), f32(i & 2u)) * 2.0 - 1.0, 0.0, 1.0);
+}
+
+fn compatibleGeometry(a: vec4f, b: vec4f, expectedDepth: f32) -> bool {
+  if a.w < 0.0 { return b.w < 0.0; }
+  if b.w < 0.0 || dot(a.xyz, b.xyz) < 0.94 { return false; }
+  return abs(b.w - expectedDepth) <= max(0.035, abs(expectedDepth) * 0.012);
+}
+
+@fragment fn fs(@builtin(position) frag: vec4f) -> @location(0) vec4f {
+  let pixel = vec2i(frag.xy);
+  let dimensions = vec2i(textureDimensions(currentRadiance));
+  let upper = dimensions - vec2i(1);
+  let current = textureLoad(currentRadiance, pixel, 0).rgb;
+  let geometry = textureLoad(currentGeometry, pixel, 0);
+  if u.atmosphere.y < 0.5 { return vec4f(current, 1.0); }
+
+  let ballDelta=u.ball.xyz-u.previousBall.xyz;
+  let ballMoving=dot(ballDelta,ballDelta)>1e-10;
+  let ballTraveling=dot(ballDelta.xz,ballDelta.xz)>1e-10;
+  // Weather moves the sand and sphere without moving the camera. Classify
+  // geometry rather than height: the underlying desert contains real dunes.
+  let xy = (2.0 * (frag.xy + u.jitter.xy) - u.screen.xy) / u.screen.y;
+  let ray = normalize(u.forward.xyz + u.right.xyz * xy.x * u.eye.w - u.up.xyz * xy.y * u.eye.w);
+  let world = u.eye.xyz + ray * max(geometry.w,0.0) / max(dot(ray,u.forward.xyz),0.00001);
+  let offset=world-u.ball.xyz;
+  let sphereSurface=geometry.w>=0.0 && abs(length(offset)-u.ball.w)<max(0.012,geometry.w*0.001)
+    && dot(normalize(offset),geometry.xyz)>0.94;
+  let onCube=geometry.w>=0.0 && all(abs(world-vec3f(0,0.91,0))<vec3f(0.94));
+  let groundSurface=geometry.w>=0.0 && !sphereSurface && !onCube;
+  let sunHeight=max(u.sun.y,0.04);
+  let shadow=u.ball.xz-u.sun.xz*u.ball.y/sunHeight;
+  let previousShadow=u.previousBall.xz-u.sun.xz*u.previousBall.y/sunHeight;
+  let shadowReach=u.ball.w/sunHeight*2.0+0.3;
+  let affectedGround=groundSurface &&
+    (min(length(world.xz-shadow),length(world.xz-previousShadow))<shadowReach
+    || min(length(world.xz-u.ball.xz),length(world.xz-u.previousBall.xz))<u.ball.w*3.0);
+  let changingSurface=(u.sandDynamics.x>0.5 && groundSurface)
+    || (ballMoving && (sphereSurface || affectedGround));
+  // At rest a pixel integrates subpixel coverage, including samples that hit
+  // different materials on a cube silhouette. Rejecting those samples by
+  // their latest jittered normal/depth makes small edges repeatedly sparkle.
+  if u.atmosphere.z < 0.00001 {
+    let prior=textureLoad(previousHistory,pixel,0);
+    // Changing ground keeps a responsive history; cube and sky stay converged.
+    let limit=select(64.0,16.0,changingSurface);
+    let samples=min(max(prior.a,1.0)+1.0,limit);
+    // Fixed rays/light need no long noise integration. Let the sharp current
+    // image replace reprojected motion history smoothly after movement stops.
+    return vec4f(mix(prior.rgb,current,max(1.0/samples,0.25)),samples);
+  }
+
+  // The G-buffer stores forward depth, not ray length. Include both frames'
+  // subpixel offsets so static accumulation remains registered to the surface.
+  var previousVector = ray;
+  if geometry.w >= 0.0 {
+    previousVector = world - u.previousEye.xyz;
+    if sphereSurface { previousVector-=ballDelta; }
+  }
+  let projectedDepth = dot(previousVector, u.previousForward.xyz);
+  if projectedDepth <= 0.00001 { return vec4f(current, 1.0); }
+  let previousXY = vec2f(dot(previousVector, u.previousRight.xyz), -dot(previousVector, u.previousUp.xyz))
+    / (projectedDepth * max(u.previousEye.w, 0.00001));
+  var previousPixel = (previousXY * u.screen.y + u.screen.xy) * 0.5 - u.jitter.zw;
+  if any(previousPixel < vec2f(0.5)) || any(previousPixel > u.screen.xy - vec2f(0.5)) {
+    return vec4f(current, 1.0);
+  }
+
+  // Validate each bilinear contributor independently. Unchecked filtered
+  // sampling would mix the floor into a newly exposed cube silhouette.
+  let samplePosition = previousPixel - vec2f(0.5);
+  let base = vec2i(floor(samplePosition));
+  let fraction = fract(samplePosition);
+  var old = vec4f(0.0);
+  var validWeight = 0.0;
+  for (var y = 0; y < 2; y++) {
+    for (var x = 0; x < 2; x++) {
+      let coord = clamp(base + vec2i(x, y), vec2i(0), upper);
+      let priorGeometry = textureLoad(previousGeometry, coord, 0);
+      if !compatibleGeometry(geometry, priorGeometry, projectedDepth) { continue; }
+      let wx = select(1.0 - fraction.x, fraction.x, x == 1);
+      let wy = select(1.0 - fraction.y, fraction.y, y == 1);
+      let weight = wx * wy;
+      old += textureLoad(previousHistory, coord, 0) * weight;
+      validWeight += weight;
+    }
+  }
+  if validWeight < 0.12 { return vec4f(current, 1.0); }
+  old /= validWeight;
+
+  // Clamp reprojected light to the current surface's neighborhood. This limits
+  // trailing in the view-dependent fog and metallic reflections after a turn.
+  var minimum = current;
+  var maximum = current;
+  var sum = vec3f(0.0);
+  var squareSum = vec3f(0.0);
+  var count = 0.0;
+  for (var y = -1; y <= 1; y++) {
+    for (var x = -1; x <= 1; x++) {
+      let coord = clamp(pixel + vec2i(x, y), vec2i(0), upper);
+      let neighborGeometry = textureLoad(currentGeometry, coord, 0);
+      if !compatibleGeometry(geometry, neighborGeometry, geometry.w) { continue; }
+      let sampleColor = textureLoad(currentRadiance, coord, 0).rgb;
+      minimum = min(minimum, sampleColor);
+      maximum = max(maximum, sampleColor);
+      sum += sampleColor;
+      squareSum += sampleColor * sampleColor;
+      count += 1.0;
+    }
+  }
+  count = max(count, 1.0);
+  let mean = sum / count;
+  let deviation = sqrt(max(squareSum / count - mean * mean, vec3f(0.0)));
+  let allowance = vec3f(0.004) + abs(mean) * 0.015;
+  let low = max(minimum - allowance, mean - deviation * 1.75 - allowance);
+  let high = min(maximum + allowance, mean + deviation * 1.75 + allowance);
+  let historyColor = clamp(old.rgb, low, high);
+  let motion = clamp(u.atmosphere.z, 0.0, 1.0);
+  let stillLimit=select(64.0,32.0,changingSurface);
+  let motionLimit=select(8.0,4.0,ballTraveling && (onCube || affectedGround));
+  let limit = select(stillLimit, motionLimit, motion > 0.00001);
+  let samples = min(max(old.a, 1.0) + 1.0, limit);
+  // Rejecting a subset of taps lowers confidence at disocclusions.
+  let historyWeight = (1.0 - 1.0 / samples) * smoothstep(0.12,0.45,validWeight);
+  return vec4f(mix(current, historyColor, historyWeight), samples);
+}
+`;
+
+const displayShader = /* wgsl */`
+struct Uniforms {
+  screen: vec4f,
+  eye: vec4f,
+  forward: vec4f,
+  right: vec4f,
+  up: vec4f,
+  sun: vec4f,
+  atmosphere: vec4f,
+  previousEye: vec4f,
+  previousForward: vec4f,
+  previousRight: vec4f,
+  previousUp: vec4f,
+  jitter: vec4f,
+  fogColor: vec4f,
+  fogSettings: vec4f,
+  lightColor: vec4f,   // RGB direct sunlight, W visible sun disc size
+  skyHorizon: vec4f, // RGB sky tint, W ground boundary distance
+  skyZenith: vec4f,
+  shaftSettings: vec4f,
+  ball: vec4f,
+  previousBall: vec4f,
+  sandMap: vec4f,
+  sandDynamics: vec4f,
+}
+@group(0) @binding(0) var<uniform> u: Uniforms;
+@group(0) @binding(1) var resolvedHistory: texture_2d<f32>;
+@group(0) @binding(2) var currentGeometry: texture_2d<f32>;
+@group(0) @binding(3) var linearSampler: sampler;
+
+@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  return vec4f(vec2f(f32((i << 1u) & 2u), f32(i & 2u)) * 2.0 - 1.0, 0.0, 1.0);
+}
+fn luminance(c: vec3f) -> f32 { return dot(c, vec3f(0.2126, 0.7152, 0.0722)); }
+fn aces(x: vec3f) -> vec3f {
+  return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), vec3f(0.0), vec3f(1.0));
+}
+
+@fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f {
+  let size = vec2i(textureDimensions(resolvedHistory));
+  let pixel = clamp(vec2i(p.xy), vec2i(0), size - vec2i(1));
+  let center = textureLoad(resolvedHistory, pixel, 0);
+  let geometry = textureLoad(currentGeometry, pixel, 0);
+  let historyLength = max(center.a, 1.0);
+  let centerLuma = luminance(center.rgb);
+  let colorWidth = 0.045 + abs(centerLuma) * 0.32 + 0.06 / sqrt(historyLength);
+  var filtered = vec3f(0.0);
+  var weights = 0.0;
+  for (var y = -1; y <= 1; y++) {
+    for (var x = -1; x <= 1; x++) {
+      let coord = clamp(pixel + vec2i(x, y), vec2i(0), size - vec2i(1));
+      let g = textureLoad(currentGeometry, coord, 0);
+      if (geometry.w < 0.0) != (g.w < 0.0) { continue; }
+      var geometryWeight = 1.0;
+      if geometry.w >= 0.0 {
+        let normalAgreement = max(dot(geometry.xyz, g.xyz), 0.0);
+        if normalAgreement < 0.94 { continue; }
+        let depthWidth = max(0.04, abs(geometry.w) * 0.018);
+        let depthDifference = abs(g.w - geometry.w) / depthWidth;
+        if depthDifference > 2.0 { continue; }
+        geometryWeight = pow(normalAgreement, 24.0) * exp(-depthDifference * depthDifference);
+      }
+      let sampleColor = textureLoad(resolvedHistory, coord, 0).rgb;
+      let colorDifference = (luminance(sampleColor) - centerLuma) / colorWidth;
+      let spatialWeight = select(1.0, 2.0, x == 0) * select(1.0, 2.0, y == 0);
+      let weight = spatialWeight * geometryWeight * exp(-colorDifference * colorDifference * 0.5);
+      filtered += sampleColor * weight;
+      weights += weight;
+    }
+  }
+  // Newly revealed pixels get a stronger spatial cleanup. Converged surfaces
+  // keep their brushed-metal and sand detail instead of retaining a blur.
+  let baseStrength = clamp(0.30 / sqrt(historyLength), 0.02, 0.30);
+  // Stationary rays are fixed, so this neighborhood no longer jitters. Keep
+  // gentle spatial cleanup for the stable fog/reflection samples as well.
+  let strength = baseStrength;
+  var c = mix(center.rgb, filtered / max(weights, 0.00001), strength);
+  let uv = p.xy / u.screen.xy;
+  let bloomStep = vec2f(12.0) / u.screen.xy;
+  let bloom0 = textureSampleLevel(resolvedHistory, linearSampler, uv + vec2f(bloomStep.x, 0.0), 0.0).rgb;
+  let bloom1 = textureSampleLevel(resolvedHistory, linearSampler, uv - vec2f(bloomStep.x, 0.0), 0.0).rgb;
+  let bloom2 = textureSampleLevel(resolvedHistory, linearSampler, uv + vec2f(0.0, bloomStep.y), 0.0).rgb;
+  let bloom3 = textureSampleLevel(resolvedHistory, linearSampler, uv - vec2f(0.0, bloomStep.y), 0.0).rgb;
+  let bloom = max(bloom0 - vec3f(0.75), vec3f(0.0)) + max(bloom1 - vec3f(0.75), vec3f(0.0))
+    + max(bloom2 - vec3f(0.75), vec3f(0.0)) + max(bloom3 - vec3f(0.75), vec3f(0.0));
+  c += bloom * 0.015;
+  let vignette = (uv - vec2f(0.5)) * vec2f(1.0, 0.75);
+  c *= 1.0 - 0.15 * dot(vignette, vignette);
+  c = aces(c * 1.12);
+  c = pow(c, vec3f(1.0 / 2.2));
+  return vec4f(clamp(c, vec3f(0.0), vec3f(1.0)), 1.0);
+}
+`;
+
+// FXAA 3.11 PC Quality preset 12, translated to WGSL. RGB luminance is computed
+// from the already tone-mapped, gamma-encoded UNORM input. Run before FSR EASU.
+// Reference: https://github.com/GameTechDev/CMAA2/blob/master/Projects/CMAA2/FXAA/Fxaa3_11.h
+// Algorithm: https://developer.download.nvidia.com/assets/gamedev/files/sdk/11/FXAA_WhitePaper.pdf
+// Copyright (c) 2014, NVIDIA CORPORATION. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+// * Redistributions of source code must retain the above copyright notice,
+//   this list of conditions and the following disclaimer.
+// * Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+// * Neither the name of NVIDIA CORPORATION nor the names of its contributors
+//   may be used to endorse or promote products derived from this software
+//   without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY EXPRESS
+// OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+// OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+// NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+// INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+// THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+const fxaaShader = /* wgsl */`
+struct PostUniforms {
+  renderSize: vec4f,
+  outputSize: vec4f,
+  settings: vec4f,
+};
+@group(0) @binding(0) var<uniform> u: PostUniforms;
+@group(0) @binding(1) var source: texture_2d<f32>;
+@group(0) @binding(2) var linearSampler: sampler;
+
+@vertex fn vs(@builtin(vertex_index) id: u32) -> @builtin(position) vec4f {
+  let p = vec2f(f32((id << 1u) & 2u), f32(id & 2u));
+  return vec4f(p * vec2f(2.0, -2.0) + vec2f(-1.0, 1.0), 0.0, 1.0);
+}
+fn rgbAt(uv: vec2f) -> vec3f {
+  // Explicit LOD makes the edge-dependent early returns valid in WGSL.
+  return textureSampleLevel(source, linearSampler, uv, 0.0).rgb;
+}
+fn luma(rgb: vec3f) -> f32 {
+  return dot(rgb, vec3f(0.299, 0.587, 0.114));
+}
+fn lumaAt(uv: vec2f) -> f32 { return luma(rgbAt(uv)); }
+
+@fragment fn fs(@builtin(position) pixel: vec4f) -> @location(0) vec4f {
+  let texel = 1.0 / u.renderSize.xy;
+  let uv = pixel.xy * texel;
+  let rgbM = rgbAt(uv);
+  let m = luma(rgbM);
+  let n = lumaAt(uv + vec2f(0.0, -texel.y));
+  let s = lumaAt(uv + vec2f(0.0, texel.y));
+  let w = lumaAt(uv + vec2f(-texel.x, 0.0));
+  let e = lumaAt(uv + vec2f(texel.x, 0.0));
+  let lo = min(m, min(min(n, s), min(w, e)));
+  let hi = max(m, max(max(n, s), max(w, e)));
+  let contrast = hi - lo;
+  // Preserve low-contrast sand detail and skip most sky/fog pixels.
+  if (contrast < max(0.0625, hi * 0.166)) { return vec4f(rgbM, 1.0); }
+
+  let nw = lumaAt(uv + vec2f(-texel.x, -texel.y));
+  let ne = lumaAt(uv + vec2f(texel.x, -texel.y));
+  let sw = lumaAt(uv + vec2f(-texel.x, texel.y));
+  let se = lumaAt(uv + vec2f(texel.x, texel.y));
+  let edgeH = 2.0 * abs(n + s - 2.0 * m)
+            + abs(nw + sw - 2.0 * w) + abs(ne + se - 2.0 * e);
+  let edgeV = 2.0 * abs(w + e - 2.0 * m)
+            + abs(nw + ne - 2.0 * n) + abs(sw + se - 2.0 * s);
+  let horizontal = edgeH >= edgeV;
+  let neighborN = select(w, n, horizontal);
+  let neighborP = select(e, s, horizontal);
+  let gradientN = neighborN - m;
+  let gradientP = neighborP - m;
+  let pairN = abs(gradientN) >= abs(gradientP);
+  let gradient = max(abs(gradientN), abs(gradientP));
+  let pairLuma = (m + select(neighborP, neighborN, pairN)) * 0.5;
+  let normal = select(vec2f(texel.x, 0.0), vec2f(0.0, texel.y), horizontal)
+             * select(1.0, -1.0, pairN);
+  let along = select(vec2f(0.0, texel.y), vec2f(texel.x, 0.0), horizontal);
+  let base = uv + normal * 0.5;
+  var posN = base - along;
+  var posP = base + along;
+  var endN = 0.0;
+  var endP = 0.0;
+  var doneN = false;
+  var doneP = false;
+  // Preset 12 distances: P0=1, P1=1.5, P2=2, P3=4, P4=12.
+  // P4 is the final extrapolation, exactly as in the reference preset.
+  let searchSteps = array<f32, 4>(1.5, 2.0, 4.0, 12.0);
+  for (var i = 0u; i < 4u; i++) {
+    if (!doneN) { endN = lumaAt(posN) - pairLuma; }
+    if (!doneP) { endP = lumaAt(posP) - pairLuma; }
+    doneN = abs(endN) >= gradient * 0.25;
+    doneP = abs(endP) >= gradient * 0.25;
+    if (doneN && doneP) { break; }
+    if (!doneN) { posN -= along * searchSteps[i]; }
+    if (!doneP) { posP += along * searchSteps[i]; }
+  }
+  let distN = select(uv.y - posN.y, uv.x - posN.x, horizontal);
+  let distP = select(posP.y - uv.y, posP.x - uv.x, horizontal);
+  let nearestEnd = select(endP, endN, distN < distP);
+  let goodSpan = (nearestEnd < 0.0) != (m - pairLuma < 0.0);
+  let edgeOffset = select(0.0, 0.5 - min(distN, distP) / (distN + distP), goodSpan);
+  let average = (2.0 * (n + s + w + e) + nw + ne + sw + se) / 12.0;
+  let subpix = clamp(abs(average - m) / contrast, 0.0, 1.0);
+  let subpixSmooth = subpix * subpix * (3.0 - 2.0 * subpix);
+  let subpixOffset = subpixSmooth * subpixSmooth * 0.25;
+  return vec4f(rgbAt(uv + normal * max(edgeOffset, subpixOffset)), 1.0);
+}
+`;
+
+/*
+ * AMD FidelityFX Super Resolution 1.0 — EASU, adapted to WGSL.
+ * Detail reconstruction is fused below to avoid another full-size pass.
+ * Source: https://github.com/GPUOpen-Effects/FidelityFX-FSR/blob/master/ffx-fsr/ffx_fsr1.h
+ * Reference revision: v1.20210629; full precision math and clamped texture loads.
+ * Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+const fsrShader = /* wgsl */`
+struct PostUniforms {
+  renderSize: vec4f,
+  outputSize: vec4f,
+  settings: vec4f,
+};
+@group(0) @binding(0) var<uniform> u: PostUniforms;
+@group(0) @binding(1) var source: texture_2d<f32>;
+@group(0) @binding(2) var linearSampler: sampler;
+
+@vertex fn vs(@builtin(vertex_index) id: u32) -> @builtin(position) vec4f {
+  let p = vec2f(f32((id << 1u) & 2u), f32(id & 2u));
+  return vec4f(p * 2.0 - 1.0, 0.0, 1.0);
+}
+fn fsrLoad(p: vec2i) -> vec3f {
+  let hi = vec2i(textureDimensions(source)) - vec2i(1);
+  return textureLoad(source, clamp(p, vec2i(0), hi), 0).rgb;
+}
+fn fsrLuma(c: vec3f) -> f32 {
+  return c.g + 0.5 * (c.r + c.b);
+}
+// FsrEasuSetF: direction.xy and edge length.z, bilinearly weighted.
+fn easuSet(w: f32, a: f32, b: f32, c: f32, d: f32, e: f32) -> vec3f {
+  let dir = vec2f(d - b, e - a);
+  let span = max(abs(vec2f(d, e) - c), abs(c - vec2f(b, a)));
+  let len = clamp(abs(dir) / max(span, vec2f(1e-6)), vec2f(0.0), vec2f(1.0));
+  return vec3f(dir, dot(len, len)) * w;
+}
+// FsrEasuTapF: Lanczos2 approximation rotated/stretched along the edge.
+fn easuTap(off: vec2f, dir: vec2f, len: vec2f, lob: f32, clp: f32, color: vec3f) -> vec4f {
+  let v = vec2f(dot(off, dir), dot(off, vec2f(-dir.y, dir.x))) * len;
+  let d2 = min(dot(v, v), clp);
+  let base = 0.4 * d2 - 1.0;
+  let window = lob * d2 - 1.0;
+  let weight = (1.5625 * base * base - 0.5625) * window * window;
+  return vec4f(color * weight, weight);
+}
+@fragment fn easu(@builtin(position) frag: vec4f) -> @location(0) vec4f {
+  // Equal-resolution output does not require reconstruction.
+  if (all(u.renderSize.xy == u.outputSize.xy)) {
+    return vec4f(fsrLoad(vec2i(frag.xy)), 1.0);
+  }
+  let pp = frag.xy * (u.renderSize.xy / u.outputSize.xy) - vec2f(0.5);
+  let origin = vec2i(floor(pp));
+  let p = fract(pp);
+  // The twelve input texels, centered on f:
+  //     b c
+  //   e f g h
+  //   i j k l
+  //     n o
+  let b = fsrLoad(origin + vec2i( 0,-1));
+  let c = fsrLoad(origin + vec2i( 1,-1));
+  let e = fsrLoad(origin + vec2i(-1, 0));
+  let f = fsrLoad(origin + vec2i( 0, 0));
+  let g = fsrLoad(origin + vec2i( 1, 0));
+  let h = fsrLoad(origin + vec2i( 2, 0));
+  let i = fsrLoad(origin + vec2i(-1, 1));
+  let j = fsrLoad(origin + vec2i( 0, 1));
+  let k = fsrLoad(origin + vec2i( 1, 1));
+  let l = fsrLoad(origin + vec2i( 2, 1));
+  let n = fsrLoad(origin + vec2i( 0, 2));
+  let o = fsrLoad(origin + vec2i( 1, 2));
+  let bL = fsrLuma(b); let cL = fsrLuma(c);
+  let eL = fsrLuma(e); let fL = fsrLuma(f); let gL = fsrLuma(g); let hL = fsrLuma(h);
+  let iL = fsrLuma(i); let jL = fsrLuma(j); let kL = fsrLuma(k); let lL = fsrLuma(l);
+  let nL = fsrLuma(n); let oL = fsrLuma(o);
+  let edge = easuSet((1.0-p.x)*(1.0-p.y), bL,eL,fL,gL,jL)
+           + easuSet(p.x*(1.0-p.y), cL,fL,gL,hL,kL)
+           + easuSet((1.0-p.x)*p.y, fL,iL,jL,kL,nL)
+           + easuSet(p.x*p.y, gL,jL,kL,lL,oL);
+  let dirSq = dot(edge.xy, edge.xy);
+  var dir = vec2f(1.0, 0.0);
+  if (dirSq >= 1.0/32768.0) { dir = edge.xy * inverseSqrt(dirSq); }
+  let edgeLength = 0.25 * edge.z * edge.z;
+  let stretch = dot(dir, dir) / max(abs(dir.x), abs(dir.y));
+  let len = vec2f(1.0 + (stretch - 1.0) * edgeLength, 1.0 - 0.5 * edgeLength);
+  let lob = 0.5 - 0.29 * edgeLength;
+  let clp = 1.0 / lob;
+  var sum = easuTap(vec2f( 0,-1)-p,dir,len,lob,clp,b);
+  sum += easuTap(vec2f( 1,-1)-p,dir,len,lob,clp,c);
+  sum += easuTap(vec2f(-1, 1)-p,dir,len,lob,clp,i);
+  sum += easuTap(vec2f( 0, 1)-p,dir,len,lob,clp,j);
+  sum += easuTap(vec2f( 0, 0)-p,dir,len,lob,clp,f);
+  sum += easuTap(vec2f(-1, 0)-p,dir,len,lob,clp,e);
+  sum += easuTap(vec2f( 1, 1)-p,dir,len,lob,clp,k);
+  sum += easuTap(vec2f( 2, 1)-p,dir,len,lob,clp,l);
+  sum += easuTap(vec2f( 2, 0)-p,dir,len,lob,clp,h);
+  sum += easuTap(vec2f( 1, 0)-p,dir,len,lob,clp,g);
+  sum += easuTap(vec2f( 1, 2)-p,dir,len,lob,clp,o);
+  sum += easuTap(vec2f( 0, 2)-p,dir,len,lob,clp,n);
+  let min4 = min(min(f,g),min(j,k));
+  let max4 = max(max(f,g),max(j,k));
+  let reconstructed=clamp(sum.rgb/max(sum.a,1e-6),min4,max4);
+  let bilinear=mix(mix(f,g,p.x),mix(j,k,p.x),p.y);
+  // Reuse the gathered samples for a modest edge boost, bounded by the local
+  // range so moving bright/dark edges cannot acquire ringing or overshoot.
+  return vec4f(clamp(reconstructed+(reconstructed-bilinear)*0.18,min4,max4),1.0);
+}`;
+
+
+function fail(error) {
+  stopped=true;
+  fpsOutput.textContent='— FPS';
+  diagnostics.error=String(error?.message||error);
+  console.error(error);
+  document.querySelector('.controls').hidden=true;
+  document.querySelector('.controls').style.display='none';
+  errorBox.textContent=String(error?.message||error);
+  errorBox.style.display='grid';
+}
+function scheduleRender() {
+  if(!scheduled&&!stopped&&initialized&&!document.hidden) {scheduled=true;requestAnimationFrame(render);}
+}
+function invalidate(resetHistory=false,interaction=true) {
+  if(interaction)lastInteractionTime=performance.now();
+  if(resetHistory)dirty=true;
+  frame=0;
+  scheduleRender();
+}
+function updateSlider(input) {
+  const value=Number(input.value);
+  const displayValue=`${value.toFixed(1)}${input.dataset.unit??'%'}`;
+  const fill=(value-Number(input.min))/(Number(input.max)-Number(input.min))*100;
+  input.style.setProperty('--fill',`${clamp(fill,0,100)}%`);
+  document.getElementById(`${input.id}-value`).value=displayValue;
+  input.setAttribute('aria-valuetext',displayValue);
+}
+for(const input of inputs) {
+  updateSlider(input);
+  input.addEventListener('input',()=>{
+    updateSlider(input);
+    if(input.id==='sand-cover')lastSandTime=performance.now();
+    invalidate(true);
+  });
+}
+function resetSliders(sliders) {
+  if(sliders.some(input=>input.id==='sand-cover'))lastSandTime=performance.now();
+  for(const input of sliders) {
+    input.value=input.defaultValue;
+    updateSlider(input);
+  }
+  invalidate(true);
+}
+for(const button of document.querySelectorAll('[data-reset]')) {
+  button.addEventListener('click',()=>resetSliders([controls[button.dataset.reset]]));
+}
+document.querySelector('#reset-all').addEventListener('click',()=>resetSliders(inputs));
+const groups = [...document.querySelectorAll('.control-group')];
+const toggleGroupsButton = document.querySelector('#toggle-groups');
+function syncGroupToggle() {
+  const anyOpen = groups.some(group => group.open);
+  toggleGroupsButton.textContent = anyOpen ? 'Collapse All' : 'Expand All';
+  toggleGroupsButton.setAttribute('aria-label', anyOpen ? 'Collapse All Control Groups' : 'Expand All Control Groups');
+  toggleGroupsButton.setAttribute('aria-expanded', String(anyOpen));
+}
+toggleGroupsButton.addEventListener('click', () => {
+  const open = !groups.some(group => group.open);
+  for (const group of groups) group.open = open;
+  syncGroupToggle();
+});
+for (const group of groups) group.addEventListener('toggle', syncGroupToggle);
+syncGroupToggle();
+
+sunDiscToggle.addEventListener('click',()=>{
+  sunDiscVisible=!sunDiscVisible;
+  sunDiscToggle.setAttribute('aria-pressed',String(sunDiscVisible));
+  sunDiscToggle.title=sunDiscVisible?'Hide Sun Disc':'Show Sun Disc';
+  invalidate(true);
+});
+function desertBaseHeight(x,z) {
+  // Broad wind-shaped dunes. Identical to the GPU field; the cube rests on a
+  // gradual clearing, while the rest of the desert has real surface volume.
+  const fade=clamp((Math.hypot(x,z)-1.35)/3.45,0,1);
+  const a=0.5+0.5*Math.sin(x*0.30+z*0.095+0.42*Math.sin(z*0.12));
+  const b=0.5+0.5*Math.sin(z*0.245-x*0.085+1.7);
+  return fade*fade*(3-2*fade)*(0.12+0.58*a*a+0.26*b*b);
+}
+function sandTileKey(x,z) { return `${x},${z}`; }
+let sandCachedTile=null,sandCachedX=Infinity,sandCachedZ=Infinity;
+let sandOccupancyDirty=true;
+function sandTileAt(tx,tz,create=false) {
+  if(tx!==sandCachedX||tz!==sandCachedZ) {
+    sandCachedX=tx;sandCachedZ=tz;sandCachedTile=sandTiles.get(sandTileKey(tx,tz));
+  }
+  let tile=sandCachedTile;
+  if(!tile&&create) {
+    const key=sandTileKey(tx,tz);
+    tile={x:tx,z:tz,key,data:new Uint16Array(SAND_TILE_SIZE*SAND_TILE_SIZE),
+      height:new Float32Array(SAND_TILE_SIZE*SAND_TILE_SIZE),active:new Set(),occupied:new Uint16Array(64),
+      dirty:false,dirtyMinRow:SAND_TILE_SIZE,dirtyMaxRow:-1,relaxUntil:-1,relaxBuffer:null,ballPocket:null};
+    sandTiles.set(key,tile);sandCachedTile=tile;
+  }
+  return tile;
+}
+function sandCell(ix,iz,create=false) {
+  const tx=Math.floor(ix/SAND_TILE_SIZE),tz=Math.floor(iz/SAND_TILE_SIZE);
+  return {tile:sandTileAt(tx,tz,create),index:(iz-tz*SAND_TILE_SIZE)*SAND_TILE_SIZE+ix-tx*SAND_TILE_SIZE};
+}
+const sandFloatScratch=new Float32Array(1);
+const sandBitsScratch=new Uint32Array(sandFloatScratch.buffer);
+function encodeSandHeight(height) {
+  if(height===0)return 0;
+  // Signed half-float stores banks and hollows on one continuous surface.
+  // Keep subnormal heights during the last stage of fading so rounding does
+  // not cut a visible flat shelf into an otherwise continuous bank.
+  if(Math.abs(height)<0.00006103515625)
+    return (height<0?0x8000:0)|Math.round(Math.abs(height)*16777216);
+  sandFloatScratch[0]=height;
+  const bits=sandBitsScratch[0],rounded=bits+0xfff+((bits>>>13)&1);
+  return ((bits>>>16)&0x8000)|(((rounded>>>13)-0x1c000)&0x7fff);
+}
+function writeSandHeight(tile,index,height) {
+  height=clamp(height,-SAND_DEPTH,SAND_PILE_HEIGHT);
+  if(Math.abs(height)<0.000002)height=0;
+  const wasActive=tile.height[index]!==0;
+  tile.height[index]=height;
+  const block=(index>>>11)*8+((index&127)>>>4);
+  if(height!==0) {
+    if(!wasActive) {
+      if(tile.active.size===0)activeSandTiles.add(tile.key);
+      tile.active.add(index);sandStats.activePixels++;
+      if(tile.occupied[block]++===0)sandOccupancyDirty=true;
+    }
+  } else if(wasActive) {
+    tile.active.delete(index);sandStats.activePixels--;
+    if(--tile.occupied[block]===0)sandOccupancyDirty=true;
+    if(tile.active.size===0) {
+      activeSandTiles.delete(tile.key);
+      // Occupancy must retire even if the last float height already rounded
+      // to zero in the GPU texture on an earlier frame.
+      dirtySandTiles.add(tile.key);
+    }
+  }
+  const encoded=encodeSandHeight(height);
+  if(tile.data[index]!==encoded) {
+    tile.data[index]=encoded;
+    if(!tile.dirty){tile.dirty=true;dirtySandTiles.add(tile.key);}
+    const row=index>>>7;
+    if(row<tile.dirtyMinRow)tile.dirtyMinRow=row;
+    if(row>tile.dirtyMaxRow)tile.dirtyMaxRow=row;
+    sandTerrainChanged=true;
+  }
+}
+function sandPixel(x,z) {
+  const tx=Math.floor(x/SAND_TILE_SIZE),tz=Math.floor(z/SAND_TILE_SIZE);
+  const tile=sandTileAt(tx,tz);
+  return tile?tile.height[(z-tz*SAND_TILE_SIZE)*SAND_TILE_SIZE+x-tx*SAND_TILE_SIZE]:0;
+}
+function sampleSandHeight(x,z) {
+  // Match WebGPU's linear sampler and texel-centre convention, including x/z<0.
+  const px=x/SAND_TEXEL-0.5,pz=z/SAND_TEXEL-0.5;
+  const ix=Math.floor(px),iz=Math.floor(pz),fx=px-ix,fz=pz-iz;
+  return desertBaseHeight(x,z)+(sandPixel(ix,iz)*(1-fx)+sandPixel(ix+1,iz)*fx)*(1-fz)
+    +(sandPixel(ix,iz+1)*(1-fx)+sandPixel(ix+1,iz+1)*fx)*fz;
+}
+function sandWritable(x,z) {
+  return Math.abs(x)>=CUBE_HALF+0.005||Math.abs(z)>=CUBE_HALF+0.005;
+}
+const sandRelaxation={clock:0,accumulator:0,regions:new Map(),buffers:new Map()};
+const sandRelaxDirections=[[1,0],[0,1],[-1,0],[0,-1]];
+function queueSandRelaxation(tile) {
+  const expiry=sandRelaxation.clock+2.0;
+  if(tile.relaxUntil!==expiry){tile.relaxUntil=expiry;sandRelaxation.regions.set(tile.key,expiry);}
+}
+const sandBrush={tiles:[],indices:new Uint16Array(8192),weights:new Float64Array(8192)};
+function depositSandBerm(ax,az,bx,bz,fx,fz,amount) {
+  if(amount<1e-8)return;
+  const radius=0.82,dx=bx-ax,dz=bz-az,lengthSquared=dx*dx+dz*dz;
+  const minX=Math.floor((Math.min(ax,bx)-radius)/SAND_TEXEL),maxX=Math.floor((Math.max(ax,bx)+radius)/SAND_TEXEL);
+  const minZ=Math.floor((Math.min(az,bz)-radius)/SAND_TEXEL),maxZ=Math.floor((Math.max(az,bz)+radius)/SAND_TEXEL);
+  const push=Number(controls['sand-push'].value)/100;
+  const inner=SAND_GROOVE_RADIUS*0.55,innerSquared=inner*inner;
+  let sum=0,count=0;
+  for(let iz=minZ;iz<=maxZ;iz++) {
+    const z=(iz+0.5)*SAND_TEXEL,tz=Math.floor(iz/SAND_TILE_SIZE),row=(iz-tz*SAND_TILE_SIZE)*SAND_TILE_SIZE;
+    let rowTile=null,rowTileX=Infinity;
+    for(let ix=minX;ix<=maxX;ix++) {
+    const x=(ix+0.5)*SAND_TEXEL;
+    if(!sandWritable(x,z))continue;
+    const along=clamp(((x-ax)*dx+(z-az)*dz)/lengthSquared,0,1);
+    const cx=ax+along*dx,cz=az+along*dz;
+    const ox=x-cx,oz=z-cz,distanceSquared=ox*ox+oz*oz;
+    if(distanceSquared<=innerSquared||distanceSquared>=0.77*0.77)continue;
+    const distance=Math.sqrt(distanceSquared),ex=x-bx,ez=z-bz,heading=ex*fx+ez*fz;
+    const forward=heading>0?heading/Math.max(Math.sqrt(ex*ex+ez*ez),0.00001):0;
+    const basePeak=0.34+0.11*forward*forward;
+    if(distance>=basePeak+0.32)continue;
+    // Sample coarse, world-anchored clumps at the bank, not across its slope.
+    // Each clump changes the height/width of one broad crest, never adds a
+    // second radial lobe. Adjacent left/right banks have different mounds.
+    const anchorX=cx+(x-cx)*basePeak/distance;
+    const anchorZ=cz+(z-cz)*basePeak/distance;
+    const noise=0.5+0.24*Math.sin(anchorX*4.7+anchorZ*2.9)
+      +0.17*Math.sin(-anchorX*3.1+anchorZ*6.2+1.8)
+      +0.09*Math.sin(anchorX*8.1-anchorZ*4.2+0.6);
+    const blend=clamp((noise-0.28)/0.44,0,1);
+    const clump=blend*blend*(3-2*blend);
+    const peak=basePeak+0.03*(2*noise-1),outer=peak+0.23+0.06*clump;
+    if(distance>=outer)continue;
+    // Feather into the outer hollow so the groove wall and bank share one
+    // rising slope instead of flattening into a second edge at the cut radius.
+    const t=distance<peak?(distance-inner)/(peak-inner):(outer-distance)/(outer-peak);
+    const shoulder=t*t*(3-2*t);
+    const weight=shoulder*(0.18+push*(0.50+3.2*forward*forward))*(0.38+1.62*clump);
+    const tx=Math.floor(ix/SAND_TILE_SIZE);
+    if(tx!==rowTileX){rowTileX=tx;rowTile=sandTileAt(tx,tz,true);}
+    const tile=rowTile,index=row+ix-tx*SAND_TILE_SIZE;
+    const capacity=SAND_PILE_HEIGHT-tile.height[index];
+    if(capacity<=0)continue;
+    if(count===sandBrush.indices.length) {
+      const indices=new Uint16Array(count*2),weights=new Float64Array(count*2);
+      indices.set(sandBrush.indices);weights.set(sandBrush.weights);sandBrush.indices=indices;sandBrush.weights=weights;
+    }
+    sandBrush.tiles[count]=tile;sandBrush.indices[count]=index;sandBrush.weights[count]=weight;
+    count++;sum+=weight;
+    }
+  }
+  // Redistribute material actually excavated. Excess beyond the local height
+  // cap is dispersed as loose grains; no volume is created while motion stops.
+  if(sum>0)for(let i=0;i<count;i++) {
+    const tile=sandBrush.tiles[i],index=sandBrush.indices[i],height=tile.height[index];
+    const addition=Math.min(SAND_PILE_HEIGHT-height,amount*sandBrush.weights[i]/sum);
+    writeSandHeight(tile,index,height+addition);
+    queueSandRelaxation(tile);
+  }
+  sandBrush.tiles.length=count;
+}
+function pushSandStep(ax,az,bx,bz) {
+  const dx=bx-ax,dz=bz-az,lengthSquared=dx*dx+dz*dz;
+  if(lengthSquared<1e-12)return;
+  const distance=Math.sqrt(lengthSquared),fx=dx/distance,fz=dz/distance;
+  const r=SAND_GROOVE_RADIUS;
+  const minX=Math.floor((Math.min(ax,bx)-r)/SAND_TEXEL);
+  const maxX=Math.floor((Math.max(ax,bx)+r)/SAND_TEXEL);
+  const minZ=Math.floor((Math.min(az,bz)-r)/SAND_TEXEL);
+  const maxZ=Math.floor((Math.max(az,bz)+r)/SAND_TEXEL);
+  let excavated=0;
+  for(let iz=minZ;iz<=maxZ;iz++) {
+    const z=(iz+0.5)*SAND_TEXEL,tz=Math.floor(iz/SAND_TILE_SIZE),row=(iz-tz*SAND_TILE_SIZE)*SAND_TILE_SIZE;
+    let rowTile=null,rowTileX=Infinity;
+    for(let ix=minX;ix<=maxX;ix++) {
+    const x=(ix+0.5)*SAND_TEXEL;
+    if(!sandWritable(x,z))continue;
+    const along=clamp(((x-ax)*dx+(z-az)*dz)/lengthSquared,0,1);
+    const d=Math.hypot(x-ax-along*dx,z-az-along*dz);
+    if(d>=r)continue;
+    const bowl=Math.max(0,1-(d/SAND_GROOVE_RADIUS)**2);
+    const cut=-SAND_DEPTH*Math.pow(bowl,1.25);
+    const tx=Math.floor(ix/SAND_TILE_SIZE);
+    if(tx!==rowTileX){rowTileX=tx;rowTile=sandTileAt(tx,tz,true);}
+    const tile=rowTile,index=row+ix-tx*SAND_TILE_SIZE;
+    if(cut<tile.height[index]) {
+      excavated+=tile.height[index]-cut;
+      writeSandHeight(tile,index,cut);
+      queueSandRelaxation(tile);
+    }
+    }
+  }
+  if(excavated>0) {
+    sandStats.displaced+=excavated*SAND_TEXEL*SAND_TEXEL;
+    depositSandBerm(ax,az,bx,bz,fx,fz,excavated);
+  }
+}
+function stampSandSegment(ax,az,bx,bz) {
+  const distance=Math.hypot(bx-ax,bz-az);
+  if(distance<1e-6)return;
+  // Spatial substeps keep transportation stable when render FPS varies.
+  const steps=Math.max(1,Math.ceil(distance/SAND_TEXEL));
+  for(let step=0;step<steps;step++) {
+    const a=step/steps,b=(step+1)/steps;
+    pushSandStep(ax+(bx-ax)*a,az+(bz-az)*a,ax+(bx-ax)*b,az+(bz-az)*b);
+  }
+  sandStats.segments++;sandStats.distance+=distance;sandStats.revision++;
+}
+function holdBallPocket(carve=false) {
+  if(!carve&&ballPocket.x===ball.x&&ballPocket.z===ball.z)return;
+  // Protection travels with the sphere; abandoned hollows weather normally.
+  for(const tile of ballPocket.tiles)tile.ballPocket=null;
+  ballPocket.tiles.length=0;ballPocket.protectedPixels=0;
+  ballPocket.x=ball.x;ballPocket.z=ball.z;
+  const radius=SAND_GROOVE_RADIUS,radiusSquared=radius*radius;
+  const minX=Math.floor((ball.x-radius)/SAND_TEXEL),maxX=Math.floor((ball.x+radius)/SAND_TEXEL);
+  const minZ=Math.floor((ball.z-radius)/SAND_TEXEL),maxZ=Math.floor((ball.z+radius)/SAND_TEXEL);
+  for(let iz=minZ;iz<=maxZ;iz++)for(let ix=minX;ix<=maxX;ix++) {
+    const x=(ix+0.5)*SAND_TEXEL,z=(iz+0.5)*SAND_TEXEL;
+    const distanceSquared=(x-ball.x)**2+(z-ball.z)**2;
+    if(distanceSquared>=radiusSquared||!sandWritable(x,z))continue;
+    const {tile,index}=sandCell(ix,iz,carve);
+    if(!tile)continue;
+    if(carve) {
+      // Initial/cleared contact is the same bowl as a moving groove, without
+      // inventing travel, a heading or a continuously replenished sand bank.
+      const cut=-SAND_DEPTH*Math.pow(1-distanceSquared/radiusSquared,1.25);
+      if(cut<tile.height[index])writeSandHeight(tile,index,cut);
+    }
+    if(tile.height[index]>=0)continue;
+    if(!tile.ballPocket){tile.ballPocket=new Set();ballPocket.tiles.push(tile);}
+    tile.ballPocket.add(index);ballPocket.protectedPixels++;
+  }
+  if(carve)ball.y=BALL_RADIUS+sampleSandHeight(ball.x,ball.z);
+}
+function relaxSandSurface(dt) {
+  const step=1/30;
+  if(sandRelaxation.regions.size===0)return false;
+  // Bound catch-up work after a slow or hidden frame. Normal frame rates all
+  // integrate the same fixed steps; settling ends two seconds after a cut.
+  sandRelaxation.accumulator=Math.min(sandRelaxation.accumulator+dt,step*2);
+  let changed=false;
+  while(sandRelaxation.accumulator+1e-9>=step&&sandRelaxation.regions.size>0) {
+    sandRelaxation.accumulator-=step;
+    sandRelaxation.clock+=step;
+    for(const [key,expiry] of sandRelaxation.regions)if(expiry<sandRelaxation.clock||!sandTiles.has(key))sandRelaxation.regions.delete(key);
+    const slump=1-Math.exp(-4.4*step),diffusion=(1-Math.exp(-0.7*step))*0.25;
+    const threshold=SAND_TEXEL*0.65;
+    const addDelta=(tile,index,value)=>{
+      let buffer=tile.relaxBuffer;
+      if(!buffer) {
+        buffer={tile,delta:new Float32Array(SAND_TILE_SIZE*SAND_TILE_SIZE),marked:new Uint8Array(SAND_TILE_SIZE*SAND_TILE_SIZE),indices:[]};
+        tile.relaxBuffer=buffer;sandRelaxation.buffers.set(tile.key,buffer);
+      }
+      buffer.tile=tile;
+      if(!buffer.marked[index]){buffer.marked[index]=1;buffer.indices.push(index);}
+      buffer.delta[index]+=value;
+    };
+    // Read one immutable height state. Each undirected neighbour pair is
+    // visited once; equal and opposite transfers preserve the sand volume.
+    for(const key of sandRelaxation.regions.keys()) {
+      const tile=sandTiles.get(key);
+      const nearCube=tile.x>=-1&&tile.x<=0&&tile.z>=-1&&tile.z<=0;
+      for(const index of tile.active) {
+        if(tile.ballPocket?.has(index))continue;
+        const localX=index%SAND_TILE_SIZE,localZ=Math.floor(index/SAND_TILE_SIZE);
+        const ix=tile.x*SAND_TILE_SIZE+localX;
+        const iz=tile.z*SAND_TILE_SIZE+localZ;
+        const height=tile.height[index];
+        for(const [dx,dz] of sandRelaxDirections) {
+          const nx=ix+dx,nz=iz+dz;
+          if(nearCube&&!sandWritable((nx+0.5)*SAND_TEXEL,(nz+0.5)*SAND_TEXEL))continue;
+          // Almost every pair stays inside its tile: no string keys, maps or
+          // neighbour objects are allocated in this common inner loop.
+          const inTile=localX+dx>=0&&localX+dx<SAND_TILE_SIZE&&localZ+dz>=0&&localZ+dz<SAND_TILE_SIZE;
+          let otherTile=tile,otherIndex=index+dx+dz*SAND_TILE_SIZE;
+          if(!inTile){const neighbour=sandCell(nx,nz);otherTile=neighbour.tile;otherIndex=neighbour.index;}
+          // Neither end of a transfer may refill the occupied hollow.
+          if(otherTile?.ballPocket?.has(otherIndex))continue;
+          const other=otherTile?otherTile.height[otherIndex]:0;
+          if(other!==0&&(inTile||sandRelaxation.regions.has(otherTile.key))&&(dx<0||dz<0))continue;
+          const difference=height-other;
+          const transfer=slump*Math.sign(difference)*Math.max(Math.abs(difference)-threshold,0)+diffusion*difference;
+          if(Math.abs(transfer)<1e-10)continue;
+          if(!otherTile){const neighbour=sandCell(nx,nz,true);otherTile=neighbour.tile;otherIndex=neighbour.index;}
+          addDelta(tile,index,-transfer);
+          addDelta(otherTile,otherIndex,transfer);
+        }
+      }
+    }
+    for(const buffer of sandRelaxation.buffers.values()) {
+      for(const index of buffer.indices) {
+        writeSandHeight(buffer.tile,index,buffer.tile.height[index]+buffer.delta[index]);
+        buffer.delta[index]=0;buffer.marked[index]=0;
+      }
+      if(buffer.indices.length)changed=true;
+      buffer.indices.length=0;
+    }
+  }
+  if(sandRelaxation.regions.size===0) {
+    sandRelaxation.accumulator=0;
+    for(const buffer of sandRelaxation.buffers.values())buffer.tile.relaxBuffer=null;
+    sandRelaxation.buffers.clear();
+  }
+  return changed;
+}
+function updateSandAccumulation(dt) {
+  const speed=Number(controls['sand-cover'].value)/100;
+  if(dt<=0||activeSandTiles.size===0)return false;
+  const retention=Math.exp(-SAND_COVER_RATE*dt*speed);
+  if(speed>0)for(const key of activeSandTiles) {
+    const tile=sandTiles.get(key);
+    let covered=0,changed=false,minRow=SAND_TILE_SIZE,maxRow=-1;
+    for(const index of tile.active) {
+      if(tile.ballPocket?.has(index))continue;
+      const oldHeight=tile.height[index];
+      // Weather the entire cross-section together. Filling negative texels up
+      // to zero independently stranded two positive rails beside older cuts.
+      // Proportional settling preserves the slope through the zero crossing,
+      // including irregular banks, until the relief becomes sub-millimetre.
+      const nextHeight=oldHeight*retention;
+      // Existing pixels keep their membership while fading. Handle the rare
+      // retirement through the general writer; batch all other bookkeeping.
+      if(Math.abs(nextHeight)<0.000002)writeSandHeight(tile,index,0);
+      else {
+        tile.height[index]=nextHeight;
+        const encoded=encodeSandHeight(nextHeight);
+        if(tile.data[index]!==encoded) {
+          tile.data[index]=encoded;changed=true;
+          const row=index>>>7;
+          if(row<minRow)minRow=row;if(row>maxRow)maxRow=row;
+        }
+      }
+      if(oldHeight<0)covered+=(tile.height[index]-oldHeight)*SAND_TEXEL*SAND_TEXEL;
+    }
+    sandStats.covered+=covered;
+    if(changed) {
+      if(!tile.dirty){tile.dirty=true;dirtySandTiles.add(tile.key);}
+      if(minRow<tile.dirtyMinRow)tile.dirtyMinRow=minRow;
+      if(maxRow>tile.dirtyMaxRow)tile.dirtyMaxRow=maxRow;
+      sandTerrainChanged=true;
+    }
+  }
+  const relaxed=relaxSandSurface(dt);
+  return speed>0||relaxed;
+}
+function sandAnimationActive() {
+  const weathering=sandStats.activePixels>ballPocket.protectedPixels&&Number(controls['sand-cover'].value)>0;
+  return activeSandTiles.size>0&&(weathering||sandRelaxation.regions.size>0);
+}
+function clearSandTracks() {
+  sandTiles.clear();activeSandTiles.clear();dirtySandTiles.clear();sandWindowDirty=true;
+  sandCachedTile=null;sandCachedX=Infinity;sandCachedZ=Infinity;sandOccupancyDirty=true;sandBrush.tiles.length=0;
+  sandRelaxation.clock=0;sandRelaxation.accumulator=0;sandRelaxation.regions.clear();sandRelaxation.buffers.clear();
+  sandStats.segments=0;sandStats.distance=0;sandStats.displaced=0;sandStats.covered=0;sandStats.activePixels=0;sandStats.revision++;
+  sandTerrainChanged=true;
+  holdBallPocket(true);
+  invalidate(true);
+}
+document.querySelector('#clear-tracks').addEventListener('click',clearSandTracks);
+function createSandResources() {
+  sandTexture=device.createTexture({label:'Persistent signed sand height window',size:[SAND_MAP_SIZE,SAND_MAP_SIZE],format:'r16float',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST});
+  sandOccupancyTexture=device.createTexture({label:'Sand fine and coarse occupancy',size:[SAND_OCCUPANCY_GRID,SAND_OCCUPANCY_GRID],mipLevelCount:4,format:'r8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST});
+  sandSampler=device.createSampler({minFilter:'linear',magFilter:'linear',addressModeU:'clamp-to-edge',addressModeV:'clamp-to-edge'});
+}
+function uploadSandTracks() {
+  const centreX=(sandWindow.x+SAND_GRID/2)*SAND_TILE_WORLD;
+  const centreZ=(sandWindow.z+SAND_GRID/2)*SAND_TILE_WORLD;
+  if(!sandWindow.ready||Math.max(Math.abs(ball.x-centreX),Math.abs(ball.z-centreZ))>SAND_TILE_WORLD*10) {
+    sandWindow.x=Math.floor(ball.x/SAND_TILE_WORLD)-SAND_GRID/2;
+    sandWindow.z=Math.floor(ball.z/SAND_TILE_WORLD)-SAND_GRID/2;
+    sandWindow.ready=true;sandWindowDirty=true;
+    // The window's far perimeter changed; discard stale reprojected lighting.
+    dirty=true;
+  }
+  if(!sandWindowDirty&&dirtySandTiles.size===0)return;
+  if(sandWindowDirty) {
+    const blankRow=new Uint8Array(SAND_MAP_SIZE*SAND_TILE_SIZE*2);
+    for(let row=0;row<SAND_GRID;row++)device.queue.writeTexture(
+      {texture:sandTexture,origin:[0,row*SAND_TILE_SIZE]},blankRow,
+      {bytesPerRow:SAND_MAP_SIZE*2},[SAND_MAP_SIZE,SAND_TILE_SIZE]);
+  }
+  const updates=sandWindowDirty?sandTiles.keys():dirtySandTiles;
+  for(const key of updates) {
+    const tile=sandTiles.get(key);
+    const x=tile.x-sandWindow.x,z=tile.z-sandWindow.z;
+    const minRow=sandWindowDirty?0:tile.dirtyMinRow,maxRow=sandWindowDirty?SAND_TILE_SIZE-1:tile.dirtyMaxRow;
+    if(x>=0&&z>=0&&x<SAND_GRID&&z<SAND_GRID&&maxRow>=minRow) {
+      device.queue.writeTexture({texture:sandTexture,origin:[x*SAND_TILE_SIZE,z*SAND_TILE_SIZE+minRow]},
+        tile.data.subarray(minRow*SAND_TILE_SIZE,(maxRow+1)*SAND_TILE_SIZE),
+        {bytesPerRow:SAND_TILE_SIZE*2},[SAND_TILE_SIZE,maxRow-minRow+1]);
+    }
+    tile.dirty=false;tile.dirtyMinRow=SAND_TILE_SIZE;tile.dirtyMaxRow=-1;
+  }
+  if(sandWindowDirty||sandOccupancyDirty) {
+  sandOccupancy.fill(0);
+  sandFineOccupancy.fill(0);
+  for(const tile of sandTiles.values()) {
+    if(tile.active.size===0)continue;
+    const x=(tile.x-sandWindow.x)*8,z=(tile.z-sandWindow.z)*8;
+    for(let block=0;block<64;block++) {
+      if(tile.occupied[block]===0)continue;
+      const bx=x+(block&7),bz=z+(block>>>3);
+      // A 0.4-unit halo covers bilinear samples and neighbouring terrain
+      // normals without making a whole 3.2-unit tile expensive to intersect.
+      for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++) {
+        const nx=bx+dx,nz=bz+dz;
+        if(nx<0||nz<0||nx>=SAND_OCCUPANCY_GRID||nz>=SAND_OCCUPANCY_GRID)continue;
+        sandFineOccupancy[nz*SAND_OCCUPANCY_GRID+nx]=255;
+        sandOccupancy[(nz>>>3)*SAND_GRID+(nx>>>3)]=255;
+      }
+    }
+  }
+  device.queue.writeTexture({texture:sandOccupancyTexture,mipLevel:0},sandFineOccupancy,{bytesPerRow:SAND_OCCUPANCY_GRID},[SAND_OCCUPANCY_GRID,SAND_OCCUPANCY_GRID]);
+  device.queue.writeTexture({texture:sandOccupancyTexture,mipLevel:3},sandOccupancy,{bytesPerRow:SAND_GRID},[SAND_GRID,SAND_GRID]);
+  sandOccupancyDirty=false;
+  }
+  dirtySandTiles.clear();sandWindowDirty=false;
+  for(const [key,tile] of sandTiles)if(tile.active.size===0) {
+    sandTiles.delete(key);
+    if(sandCachedTile===tile){sandCachedTile=null;sandCachedX=Infinity;sandCachedZ=Infinity;}
+  }
+  canvas.dataset.trackSegments=String(sandStats.segments);
+  canvas.dataset.trackDistance=sandStats.distance.toFixed(3);
+  canvas.dataset.sandActivePixels=String(sandStats.activePixels);
+  canvas.dataset.sandCovered=sandStats.covered.toFixed(6);
+  canvas.dataset.sandDisplaced=sandStats.displaced.toFixed(6);
+}
+function updateBall(dt) {
+  const forward=Number(movementKeys.has('KeyW'))-Number(movementKeys.has('KeyS'));
+  const strafe=Number(movementKeys.has('KeyD'))-Number(movementKeys.has('KeyA'));
+  const length=Math.hypot(forward,strafe);
+  if(length===0)return 0;
+  // Movement follows the current camera's horizontal axes; diagonals have the
+  // same speed as a single key. Small steps and axis separation allow sliding.
+  const s=Math.sin(orbit.yaw),c=Math.cos(orbit.yaw);
+  const distance=BALL_SPEED*dt/length;
+  const dx=(c*strafe-s*forward)*distance;
+  const dz=(-s*strafe-c*forward)*distance;
+  const startX=ball.x,startZ=ball.z;
+  const steps=Math.max(1,Math.ceil(BALL_SPEED*dt/(BALL_RADIUS*0.5)));
+  const boundary=CUBE_HALF+BALL_RADIUS+0.002;
+  for(let i=0;i<steps;i++) {
+    const previousX=ball.x,previousZ=ball.z;
+    let nextX=ball.x+dx/steps;
+    if(Math.abs(ball.z)<boundary&&Math.abs(nextX)<boundary) {
+      nextX=ball.x>=boundary?boundary:ball.x<=-boundary?-boundary:ball.x;
+    }
+    ball.x=nextX;
+    let nextZ=ball.z+dz/steps;
+    if(Math.abs(ball.x)<boundary&&Math.abs(nextZ)<boundary) {
+      nextZ=ball.z>=boundary?boundary:ball.z<=-boundary?-boundary:ball.z;
+    }
+    ball.z=nextZ;
+    stampSandSegment(previousX,previousZ,ball.x,ball.z);
+  }
+  return Math.hypot(ball.x-startX,ball.z-startZ);
+}
+function clearMovement() {
+  if(movementKeys.size){movementKeys.clear();invalidate();}
+}
+window.addEventListener('keydown',e=>{
+  if(!movementCodes.has(e.code)||e.isComposing||e.ctrlKey||e.altKey||e.metaKey)return;
+  const element=e.target;
+  if(element?.isContentEditable||element?.closest?.('[contenteditable="true"],textarea,select')||
+    (element?.tagName==='INPUT'&&element.type!=='range'))return;
+  e.preventDefault();
+  if(movementKeys.has(e.code))return;
+  if(movementKeys.size===0)lastRenderTime=performance.now();
+  movementKeys.add(e.code);
+  invalidate();
+});
+window.addEventListener('keyup',e=>{
+  // Always release a key, even when focus or modifier state has changed.
+  if(movementKeys.delete(e.code)){e.preventDefault();invalidate();}
+});
+window.addEventListener('blur',clearMovement);
+canvas.addEventListener('pointerdown',e=>{
+  canvas.focus({preventScroll:true});
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===2) { const p=[...pointers.values()]; pinchDistance=Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y); }
+  invalidate();
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!pointers.has(e.pointerId))return;
+  const old=pointers.get(e.pointerId); const dx=e.clientX-old.x,dy=e.clientY-old.y;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===1) {
+    target.yaw-=dx*0.006;
+    target.pitch=clamp(target.pitch+dy*0.005,0.065,1.36);
+  } else {
+    const p=[...pointers.values()]; const d=Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y);
+    if(pinchDistance>0&&d>0)target.radius=clamp(target.radius*pinchDistance/d,4.2,23);
+    pinchDistance=d;
+  }
+  invalidate();
+});
+function release(e){pointers.delete(e.pointerId);if(pointers.size<2)pinchDistance=0;invalidate();}
+canvas.addEventListener('pointerup',release);
+canvas.addEventListener('pointercancel',release);
+canvas.addEventListener('lostpointercapture',release);
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?innerHeight:1);
+  target.radius=clamp(target.radius*Math.exp(clamp(delta,-240,240)*0.0012),4.2,23);
+  invalidate();
+},{passive:false});
+canvas.addEventListener('keydown',e=>{
+  let handled=true;
+  if(e.key==='ArrowLeft')target.yaw+=0.10;
+  else if(e.key==='ArrowRight')target.yaw-=0.10;
+  else if(e.key==='ArrowUp')target.pitch=clamp(target.pitch+0.08,0.065,1.36);
+  else if(e.key==='ArrowDown')target.pitch=clamp(target.pitch-0.08,0.065,1.36);
+  else if(e.key==='+'||e.key==='=')target.radius=clamp(target.radius*0.9,4.2,23);
+  else if(e.key==='-'||e.key==='_')target.radius=clamp(target.radius/0.9,4.2,23);
+  else handled=false;
+  if(handled){e.preventDefault();invalidate();}
+});
+new ResizeObserver(()=>{resizeNeeded=true;invalidate(true);}).observe(canvas);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearMovement();else {lastRenderTime=performance.now();invalidate(true);}});
+
+// FPS measures completed scene frames, never requestAnimationFrame callbacks.
+// Once the static image converges the GPU sleeps and the counter says idle.
+const completionTimes=[];
+setInterval(()=>{
+  const now=performance.now();
+  const last=completionTimes.at(-1)||0;
+  const idle=frame>=96&&pendingFrames===0&&now-last>300&&!sandAnimationActive();
+  const span=last-(completionTimes[0]||last);
+  diagnostics.fps=span>50?(completionTimes.length-1)*1000/span:0;
+  if(stopped||!initialized)fpsOutput.textContent='— FPS';
+  else if(document.hidden)fpsOutput.textContent='0 FPS · 暂停';
+  else if(idle){diagnostics.fps=0;fpsOutput.textContent='0 FPS · 静止';}
+  else fpsOutput.textContent=span>50?`${Math.round(diagnostics.fps)} FPS`:'— FPS';
+  fpsOutput.dataset.fps=diagnostics.fps.toFixed(1);
+},250);
+
+function createNoiseResources() {
+  // Store the value-noise lattice once. Linear sampling replaces hundreds of
+  // repeated arithmetic hashes per ray while preserving smooth cubic weights.
+  const data=new Uint8Array(256*256);
+  const fract=x=>x-Math.floor(x);
+  for(let y=0;y<256;y++)for(let x=0;x<256;x++) {
+    let a=fract((x-128)*0.1031),b=fract((y-128)*0.1031),c=a;
+    const d=a*(b+33.33)+b*(c+33.33)+c*(a+33.33);
+    a+=d;b+=d;c+=d;
+    data[y*256+x]=Math.round(fract((a+b)*c)*255);
+  }
+  noiseTexture=device.createTexture({size:[256,256],format:'r8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST});
+  device.queue.writeTexture({texture:noiseTexture},data,{bytesPerRow:256},[256,256]);
+  noiseSampler=device.createSampler({minFilter:'linear',magFilter:'linear',addressModeU:'repeat',addressModeV:'repeat'});
+  traceGroup=device.createBindGroup({layout:tracePipeline.getBindGroupLayout(0),entries:[
+    {binding:0,resource:{buffer:uniformBuffer}},{binding:1,resource:noiseTexture.createView()},{binding:2,resource:noiseSampler},
+    {binding:3,resource:sandTexture.createView()},{binding:4,resource:sandSampler},{binding:5,resource:sandOccupancyTexture.createView()}
+  ]});
+}
+
+function resize() {
+  // Presentation size stays fixed during DRS changes. Bound full-resolution
+  // postprocessing/memory separately from the much more expensive ray tracer.
+  const cssWidth=Math.max(innerWidth,1),cssHeight=Math.max(innerHeight,1);
+  const maxDimension=device.limits.maxTextureDimension2D;
+  const outputScale=Math.min(devicePixelRatio||1,2,Math.sqrt(4_194_304/(cssWidth*cssHeight)),maxDimension/cssWidth,maxDimension/cssHeight);
+  const outW=Math.max(1,Math.floor(cssWidth*outputScale)),outH=Math.max(1,Math.floor(cssHeight*outputScale));
+  const outputChanged=outW!==outputWidth||outH!==outputHeight;
+  if(outputChanged) {
+    outputWidth=canvas.width=outW;outputHeight=canvas.height=outH;
+    // Preserve at least the former one-million-pixel starting detail level.
+    // Frame-rate adaptation must never turn the sand into a low-res image.
+    quality.minScale=Math.min(1,Math.max(0.5,Math.sqrt(1_000_000/(outW*outH))));
+    quality.maxScale=Math.min(1,Math.sqrt(2_500_000/(outW*outH)));
+    quality.scale=clamp(Math.sqrt(1_400_000/(outW*outH)),quality.minScale,quality.maxScale);
+  }
+  const w=Math.max(1,Math.round(outW*quality.scale)),h=Math.max(1,Math.round(outH*quality.scale));
+  if(!outputChanged&&w===renderWidth&&h===renderHeight){resizeNeeded=false;return;}
+  renderWidth=w;renderHeight=h;
+  // render() drains all submitted work before entering this allocation path.
+  for(const texture of [...history,...geometry])texture.destroy();
+  rawRadiance?.destroy();
+  toneMapped?.destroy();antiAliased?.destroy();
+  const makeTexture=()=>device.createTexture({size:[w,h],format:'rgba16float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});
+  history=[makeTexture(),makeTexture()];
+  geometry=[makeTexture(),makeTexture()];
+  rawRadiance=makeTexture();
+  const makeLdrTexture=label=>device.createTexture({label,size:[w,h],format:'rgba8unorm',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});
+  toneMapped=makeLdrTexture('Denoised gamma-space color');
+  antiAliased=makeLdrTexture('FXAA output');
+  temporalGroups=history.map((_,i)=>device.createBindGroup({layout:temporalPipeline.getBindGroupLayout(0),entries:[
+    {binding:0,resource:{buffer:uniformBuffer}},{binding:1,resource:rawRadiance.createView()},
+    {binding:2,resource:geometry[i].createView()},{binding:3,resource:history[1-i].createView()},
+    {binding:4,resource:geometry[1-i].createView()}
+  ]}));
+  const sampler=device.createSampler({magFilter:'linear',minFilter:'linear'});
+  displayGroups=history.map((texture,i)=>device.createBindGroup({layout:displayPipeline.getBindGroupLayout(0),entries:[
+    {binding:0,resource:{buffer:uniformBuffer}},{binding:1,resource:texture.createView()},
+    {binding:2,resource:geometry[i].createView()},{binding:3,resource:sampler}
+  ]}));
+  const makePostGroup=texture=>device.createBindGroup({layout:postLayout,entries:[
+    {binding:0,resource:{buffer:postUniformBuffer}},{binding:1,resource:texture.createView()},{binding:2,resource:sampler}
+  ]});
+  fxaaGroup=makePostGroup(toneMapped);easuGroup=makePostGroup(antiAliased);
+  postUniforms.set([w,h,1/w,1/h,outW,outH,1/outW,1/outH,0.5,0,0,0]);
+  device.queue.writeBuffer(postUniformBuffer,0,postUniforms);
+  resolutionEpoch++;
+  quality.averageMs=0;quality.warmup=8;quality.slow=0;quality.fast=0;quality.lastChange=performance.now();quality.awaitingAdjustment=false;
+  diagnostics.resolution=[w,h];diagnostics.outputResolution=[outW,outH];diagnostics.renderScale=Math.sqrt(w*h/(outW*outH));
+  diagnostics.resolutionChanges=quality.changes;
+  resizeNeeded=false;dirty=true;historyValid=false;frame=0;
+}
+function updateResolutionBudget(milliseconds,epoch,source,cpuMilliseconds=0) {
+  if(stopped||document.hidden||epoch!==resolutionEpoch||resizeNeeded||!Number.isFinite(milliseconds)||milliseconds<=0)return;
+  diagnostics.timingSource=source;
+  if(source==='gpu-timestamp')diagnostics.gpuMilliseconds=milliseconds;
+  quality.cpuMs=quality.cpuMs*0.9+cpuMilliseconds*0.1;
+  // Freeze the sampling grid after manipulation; asynchronous GPU timings
+  // must not keep clearing a stationary silhouette's accumulated coverage.
+  const interactive=cameraMotion>0.00001||movementKeys.size>0||pointers.size>0||performance.now()-lastInteractionTime<180;
+  if(!interactive) {
+    quality.awaitingAdjustment=false;quality.slow=0;quality.fast=0;
+    return;
+  }
+  if(quality.warmup>0){quality.warmup--;return;}
+  quality.averageMs=quality.averageMs?quality.averageMs*0.88+milliseconds*0.12:milliseconds;
+  diagnostics.budgetMilliseconds=quality.averageMs;
+  // Reserve CPU deformation/encoding and presentation time within 10 ms.
+  const budget=source==='gpu-timestamp'
+    ?Math.max(3,1000/quality.targetFps-Math.max(3,quality.cpuMs+1.5))
+    :1000/quality.targetFps*0.95;
+  quality.slow=quality.averageMs>budget*1.12?quality.slow+1:0;
+  quality.fast=quality.averageMs<budget*0.65?quality.fast+1:0;
+  const now=performance.now();
+  let next=quality.scale;
+  // Wide hysteresis and a long recovery cooldown prevent resolution pumping.
+  // Recover detail on faster hardware instead of permanently staying blurry.
+  if(quality.slow>=12)next*=clamp(Math.sqrt(budget/quality.averageMs)*0.97,0.65,0.94);
+  else if(quality.fast>=120&&now-quality.lastChange>=6000)next*=1.08;
+  next=clamp(next,quality.minScale,quality.maxScale);
+  quality.awaitingAdjustment=Math.abs(next-quality.scale)>=0.001;
+  if(!quality.awaitingAdjustment)return;
+  // Input and camera motion supply frames; a pending quality assessment alone
+  // must not keep a converged image running.
+  if(now-quality.lastChange<1500)return;
+  quality.scale=next;quality.changes++;quality.lastChange=now;
+  resizeNeeded=true;
+  invalidate(false,false);
+}
+function createGpuTimer() {
+  if(!device.features.has('timestamp-query'))return;
+  gpuTimer.enabled=true;
+  diagnostics.timingSource='gpu-timestamp';
+  gpuTimer.slots=Array.from({length:3},()=>({
+    busy:false,
+    queries:device.createQuerySet({type:'timestamp',count:2}),
+    resolve:device.createBuffer({size:16,usage:GPUBufferUsage.QUERY_RESOLVE|GPUBufferUsage.COPY_SRC}),
+    read:device.createBuffer({size:16,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ})
+  }));
+}
+function readGpuTimer(slot,epoch,cpuMilliseconds) {
+  slot.read.mapAsync(GPUMapMode.READ).then(()=>{
+    const ticks=new BigUint64Array(slot.read.getMappedRange());
+    const milliseconds=Number(ticks[1]-ticks[0])/1e6;
+    slot.read.unmap();slot.busy=false;
+    if(gpuTimer.enabled)updateResolutionBudget(milliseconds,epoch,'gpu-timestamp',cpuMilliseconds);
+  }).catch(()=>{
+    // Timing must never be a prerequisite for rendering on a browser/driver.
+    if(slot.read.mapState==='mapped')slot.read.unmap();
+    slot.busy=false;gpuTimer.enabled=false;diagnostics.timingSource='queue-latency';
+    quality.averageMs=0;quality.warmup=8;quality.slow=0;quality.fast=0;quality.awaitingAdjustment=false;
+  });
+}
+function halton(index,base) {
+  let result=0,fraction=1;
+  while(index>0){fraction/=base;result+=fraction*(index%base);index=Math.floor(index/base);}
+  return result;
+}
+function fogTint(degrees) {
+  // Soft chroma, constant luminance: hue changes color without changing exposure.
+  const hue=((degrees/60)%6+6)%6;
+  const rgb=[5,3,1].map(offset=>{
+    const k=(offset+hue)%6;
+    return 0.72+0.28*(1-Math.max(0,Math.min(k,4-k,1)));
+  });
+  const luma=rgb[0]*0.2126+rgb[1]*0.7152+rgb[2]*0.0722;
+  return rgb.map(channel=>channel/luma);
+}
+// Rotate hue without changing luminance; saturation and exposure stay separate.
+function gradeColor(rgb,hueOffset,saturation,brightness) {
+  const maximum=Math.max(...rgb),minimum=Math.min(...rgb),chroma=maximum-minimum;
+  let hue=0;
+  if(chroma>1e-8) {
+    if(maximum===rgb[0])hue=(rgb[1]-rgb[2])/chroma;
+    else if(maximum===rgb[1])hue=2+(rgb[2]-rgb[0])/chroma;
+    else hue=4+(rgb[0]-rgb[1])/chroma;
+  }
+  hue=((hue+hueOffset/60)%6+6)%6;
+  const shifted=[5,3,1].map(offset=>{
+    const k=(offset+hue)%6;
+    return maximum-chroma*Math.max(0,Math.min(k,4-k,1));
+  });
+  const luminance=c=>c[0]*0.2126+c[1]*0.7152+c[2]*0.0722;
+  const luma=luminance(rgb),scale=luma/Math.max(luminance(shifted),1e-8);
+  return shifted.map(c=>Math.max(0,luma+(c*scale-luma)*saturation)*brightness);
+}
+function setUniforms() {
+  const s=Math.sin(orbit.yaw),c=Math.cos(orbit.yaw),sp=Math.sin(orbit.pitch),cp=Math.cos(orbit.pitch);
+  // Follow broad dunes during travel, while local digging and fresh deposition
+  // affect only sphere contact. A stationary view never bobs with filling sand.
+  const focusY=BALL_RADIUS+desertBaseHeight(ball.x,ball.z);
+  const eyeX=ball.x+s*cp*orbit.radius,eyeZ=ball.z+c*cp*orbit.radius;
+  let eyeY=focusY+sp*orbit.radius;
+  // A following camera can orbit through the cube after the ball moves.
+  // Lift smoothly over its footprint instead of placing the eye inside it.
+  const apron=clamp(Math.max(Math.abs(eyeX)-CUBE_HALF,Math.abs(eyeZ)-CUBE_HALF)/0.6,0,1);
+  const lift=1-apron*apron*(3-2*apron);
+  eyeY+=Math.max(0,CUBE_HALF*2+0.18-eyeY)*lift;
+  // Clearance uses the stable desert only, including room for the tallest
+  // pushed bank, so low-angle orbiting cannot bury the camera in a dune.
+  eyeY=Math.max(eyeY,desertBaseHeight(eyeX,eyeZ)+0.42);
+  const cameraDistance=Math.hypot(cp*orbit.radius,eyeY-focusY);
+  const cameraSin=(eyeY-focusY)/cameraDistance,cameraCos=cp*orbit.radius/cameraDistance;
+  // Fixed pixel centres and deterministic lighting during navigation as well
+  // as refill. FXAA handles coverage without shaking the sampling grid.
+  uniforms.set([renderWidth,renderHeight,frame,0],0);
+  // Preserve the original yaw, pitch, distance and FOV; only the orbit pivot
+  // follows the ball. Dragging and zooming continue to operate around that pivot.
+  uniforms.set([eyeX,eyeY,eyeZ,Math.tan(39*Math.PI/360)],4);
+  uniforms.set([-s*cameraCos,-cameraSin,-c*cameraCos,0],8);
+  uniforms.set([c,0,-s,0],12);
+  uniforms.set([-s*cameraSin,cameraCos,-c*cameraSin,0],16);
+  let sun=['sun-x','sun-y','sun-z'].map(id=>Number(controls[id].value));
+  let sunLength=Math.hypot(...sun);
+  if(sunLength<1e-6) { sun=[58.8,61.4,-52.7]; sunLength=Math.hypot(...sun); }
+  const intensity=Number(controls['light-brightness'].value)/100;
+  const horizon=clamp((sun[1]/sunLength+0.04)/0.08,0,1);
+  uniforms.set([...sun.map(v=>v/sunLength),intensity*2.88*horizon*horizon*(3-2*horizon)],20);
+  const fog=Number(controls.fog.value)/100;
+  uniforms.set([fog*fog*0.30,historyValid&&!dirty?1:0,cameraMotion,Number(sunDiscVisible)],24);
+  uniforms.set(previousUniforms.subarray(4,20),28);
+  uniforms.set([0,0,0,0],44);
+  uniforms.set([...fogTint(Number(controls['fog-hue'].value)),0],48);
+  uniforms.set([Number(controls['fog-saturation'].value)/100,Number(controls['fog-brightness'].value)/100,Number(controls['shaft-size'].value)/100,Number(controls['shaft-density'].value)/100],52);
+  uniforms.set([...gradeColor([1,0.84,0.62],Number(controls['light-hue'].value)-34.7,Number(controls['light-saturation'].value)/100,1),Number(controls['sun-disc-size'].value)/100],56);
+  const skyHue=Number(controls['environment-hue'].value),skySaturation=Number(controls['environment-saturation'].value)/100,skyBrightness=Number(controls['environment-brightness'].value)/100;
+  uniforms.set([...gradeColor(fogTint(35).map(v=>v*0.56),skyHue,skySaturation,skyBrightness),Number(controls['environment-boundary'].value)],60);
+  uniforms.set([...gradeColor([0.11,0.16,0.21],skyHue,skySaturation,skyBrightness),0],64);
+  uniforms.set([Number(controls['shaft-opacity'].value)/100,0,Number(controls['shaft-position'].value),0],68);
+  uniforms.set([ball.x,ball.y,ball.z,BALL_RADIUS],72);
+  uniforms.set(previousUniforms.subarray(72,76),76);
+  uniforms.set([sandWindow.x*SAND_TILE_WORLD,sandWindow.z*SAND_TILE_WORLD,SAND_MAP_SIZE*SAND_TEXEL,SAND_TEXEL],80);
+  uniforms.set([Number(sandAnimationActive()||sandTerrainChanged),0,0,0],84);
+  device.queue.writeBuffer(uniformBuffer,0,uniforms);
+}
+function render(now) {
+  scheduled=false;
+  if(stopped||document.hidden)return;
+  // Keep at most two frames queued. Do not wait for GPU completion before
+  // requesting the next animation frame (which can miss a display refresh).
+  if(pendingFrames>=2||(resizeNeeded&&pendingFrames>0)){scheduleRender();return;}
+  const started=performance.now(); const token=generation;
+  try {
+    if(resizeNeeded)resize();
+    const dt=clamp((now-lastRenderTime)/1000,1/240,0.05);
+    lastRenderTime=now;
+    sandTerrainChanged=false;
+    const sandElapsed=lastSandTime?Math.max(0,(now-lastSandTime)/1000):0;
+    lastSandTime=now;
+    updateSandAccumulation(sandElapsed);
+    let moving=false;
+    const wasMoving=previousNavigationMoving;
+    cameraMotion=0;
+    for(const key of ['yaw','pitch','radius']) {
+      const delta=target[key]-orbit[key];
+      if(Math.abs(delta)>0.0001) {
+        const step=delta*(reduceMotion?1:1-Math.exp(-18*dt));
+        orbit[key]+=step;moving=true;
+        cameraMotion+=Math.abs(step)*(key==='radius'?0.08:1.0)*16;
+      }
+      else orbit[key]=target[key];
+    }
+    const ballDistance=updateBall(dt);
+    holdBallPocket();
+    if(ballDistance>0){moving=true;cameraMotion+=ballDistance*8;lastInteractionTime=now;}
+    const navigationMoving=moving;
+    previousNavigationMoving=navigationMoving;
+    const contactY=BALL_RADIUS+sampleSandHeight(ball.x,ball.z);
+    const contactDelta=contactY-ball.y;
+    const contactMoving=Math.abs(contactDelta)>0.000001;
+    ball.y=contactMoving?ball.y+contactDelta*(1-Math.exp(-26*dt)):contactY;
+    cameraMotion=Math.min(cameraMotion,1);
+    // The fixed sampling mode is shared by travel and rest; stopping does not
+    // throw away valid history and flash a single unfiltered frame.
+    if(dirty||moving)frame=0;
+    uploadSandTracks();
+    setUniforms();
+    const encoder=device.createCommandEncoder();
+    const submittedEpoch=resolutionEpoch;
+    const timingSlot=gpuTimer.enabled?gpuTimer.slots.find(slot=>!slot.busy):null;
+    if(timingSlot)timingSlot.busy=true;
+    const destination=totalFrames%2;
+    const attachment=view=>({view,loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:0}});
+    const trace=encoder.beginRenderPass({colorAttachments:[attachment(rawRadiance.createView()),attachment(geometry[destination].createView())],...(timingSlot?{timestampWrites:{querySet:timingSlot.queries,beginningOfPassWriteIndex:0}}:{})});
+    trace.setPipeline(tracePipeline);trace.setBindGroup(0,traceGroup);trace.draw(3);trace.end();
+    const temporal=encoder.beginRenderPass({colorAttachments:[attachment(history[destination].createView())]});
+    temporal.setPipeline(temporalPipeline);temporal.setBindGroup(0,temporalGroups[destination]);temporal.draw(3);temporal.end();
+    const display=encoder.beginRenderPass({colorAttachments:[attachment(toneMapped.createView())]});
+    display.setPipeline(displayPipeline);display.setBindGroup(0,displayGroups[destination]);display.draw(3);display.end();
+    const fxaa=encoder.beginRenderPass({colorAttachments:[attachment(antiAliased.createView())]});
+    fxaa.setPipeline(fxaaPipeline);fxaa.setBindGroup(0,fxaaGroup);fxaa.draw(3);fxaa.end();
+    const easu=encoder.beginRenderPass({colorAttachments:[attachment(context.getCurrentTexture().createView())],...(timingSlot?{timestampWrites:{querySet:timingSlot.queries,endOfPassWriteIndex:1}}:{})});
+    easu.setPipeline(easuPipeline);easu.setBindGroup(0,easuGroup);easu.draw(3);easu.end();
+    if(timingSlot) {
+      encoder.resolveQuerySet(timingSlot.queries,0,2,timingSlot.resolve,0);
+      encoder.copyBufferToBuffer(timingSlot.resolve,0,timingSlot.read,0,16);
+    }
+    device.queue.submit([encoder.finish()]);
+    const cpuMilliseconds=performance.now()-started;
+    diagnostics.cpuMilliseconds=cpuMilliseconds;
+    if(timingSlot)readGpuTimer(timingSlot,submittedEpoch,cpuMilliseconds);
+    previousUniforms.set(uniforms);
+    historyValid=true;dirty=false;
+    frame++;totalFrames++;pendingFrames++;
+    const submittedSamples=frame,submittedCamera=JSON.stringify({...orbit,focus:{x:ball.x,y:BALL_RADIUS+desertBaseHeight(ball.x,ball.z),z:ball.z},eye:Array.from(uniforms.subarray(4,7)),forward:Array.from(uniforms.subarray(8,11)),motion:cameraMotion}),submittedMotion=cameraMotion;
+    device.queue.onSubmittedWorkDone().then(()=>{
+      pendingFrames--;
+      if(token!==generation||stopped)return;
+      completedFrames++;
+      const completedAt=performance.now();
+      if(completedAt-(completionTimes.at(-1)||0)>250)completionTimes.length=0;
+      completionTimes.push(completedAt);
+      if(completionTimes.length>60)completionTimes.shift();
+      diagnostics.frames=completedFrames;diagnostics.samples=submittedSamples;diagnostics.milliseconds=performance.now()-started;
+      if(!gpuTimer.enabled)updateResolutionBudget(completedAt-started,submittedEpoch,'queue-latency',cpuMilliseconds);
+      diagnostics.ready=true;
+      canvas.dataset.ready='true';canvas.dataset.samples=String(submittedSamples);
+      canvas.dataset.frames=String(completedFrames);canvas.dataset.frameMilliseconds=diagnostics.milliseconds.toFixed(1);
+      canvas.dataset.camera=submittedCamera;canvas.dataset.motion=submittedMotion.toFixed(4);
+      canvas.dataset.renderScale=diagnostics.renderScale.toFixed(4);
+      canvas.dataset.resolutionChanges=String(quality.changes);
+    }).catch(fail);
+    if(frame<96||moving||contactMoving||movementKeys.size>0||sandAnimationActive())scheduleRender();
+  } catch(error) {fail(error);}
+}
+async function requestSceneDevice(gpu) {
+  // Prefer the discrete GPU on hybrid laptops; fall back when unavailable.
+  for(const preference of ['high-performance','default','low-power']) {
+    const options=preference==='default'?undefined:{powerPreference:preference};
+    const attempt={preference,status:'requesting'};
+    diagnostics.adapterAttempts.push(attempt);
+    try {
+      const adapter=await gpu.requestAdapter(options);
+      if(!adapter){attempt.status='unavailable';continue;}
+      if(adapter.info) {
+        diagnostics.adapterInfo={vendor:adapter.info.vendor,architecture:adapter.info.architecture,device:adapter.info.device,description:adapter.info.description};
+        canvas.dataset.adapterInfo=JSON.stringify(diagnostics.adapterInfo);
+      }
+      let selectedDevice;
+      if(adapter.features.has('timestamp-query')) {
+        try { selectedDevice=await adapter.requestDevice({requiredFeatures:['timestamp-query']}); }
+        catch { selectedDevice=await adapter.requestDevice(); }
+      } else selectedDevice=await adapter.requestDevice();
+      attempt.status='ready';
+      canvas.dataset.adapter=preference;
+      return selectedDevice;
+    } catch(error) {
+      attempt.status='failed';
+      attempt.message=String(error?.message||error);
+    }
+  }
+  console.warn('WebGPU adapter attempts:',JSON.stringify(diagnostics.adapterAttempts));
+  throw new Error('浏览器未提供可用的 WebGPU 设备。\n请在 Chrome 地址栏打开 chrome://settings/system，\n开启“使用图形加速功能（如果可用）”，重新启动 Chrome 后再打开本页面。\n如果仍然无法显示，请打开 chrome://gpu 查看 WebGPU 的状态。');
+}
+async function init() {
+  if(!navigator.gpu)throw new Error('此场景需要 WebGPU。请使用支持 WebGPU 的 Chrome 或 Edge，并通过 localhost 或 HTTPS 打开。');
+  device=await requestSceneDevice(navigator.gpu);
+  device.addEventListener('uncapturederror',e=>fail(e.error));
+  device.lost.then(info=>{generation++;if(!stopped)fail(new Error(`GPU 连接已中断，请刷新页面。${info.message}`));});
+  context=canvas.getContext('webgpu');
+  format=navigator.gpu.getPreferredCanvasFormat();
+  context.configure({device,format,alphaMode:'opaque'});
+  uniformBuffer=device.createBuffer({size:uniforms.byteLength,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+  postUniformBuffer=device.createBuffer({size:postUniforms.byteLength,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+  const modules=[shader,temporalShader,displayShader,fxaaShader,fsrShader].map(code=>device.createShaderModule({code}));
+  for(const module of modules) {
+    const info=await module.getCompilationInfo();
+    const errors=info.messages.filter(m=>m.type==='error');
+    if(errors.length)throw new Error(errors.map(m=>`WGSL ${m.lineNum}:${m.linePos} ${m.message}`).join('\n'));
+  }
+  [tracePipeline,temporalPipeline,displayPipeline]=await Promise.all(modules.slice(0,3).map((module,i)=>device.createRenderPipelineAsync({
+    layout:'auto',vertex:{module,entryPoint:'vs'},
+    fragment:{module,entryPoint:'fs',targets:i===0?[{format:'rgba16float'},{format:'rgba16float'}]:[{format:i===2?'rgba8unorm':'rgba16float'}]},
+    primitive:{topology:'triangle-list'}
+  })));
+  // Explicit shared layout: EASU uses textureLoad, so auto layout would
+  // otherwise omit their sampler and disagree with the common bind groups.
+  postLayout=device.createBindGroupLayout({entries:[
+    {binding:0,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform',minBindingSize:48}},
+    {binding:1,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'float',viewDimension:'2d'}},
+    {binding:2,visibility:GPUShaderStage.FRAGMENT,sampler:{type:'filtering'}}
+  ]});
+  const postPipelineLayout=device.createPipelineLayout({bindGroupLayouts:[postLayout]});
+  [fxaaPipeline,easuPipeline]=await Promise.all([
+    {module:modules[3],entryPoint:'fs',target:'rgba8unorm'},
+    {module:modules[4],entryPoint:'easu',target:format}
+  ].map(({module,entryPoint,target})=>device.createRenderPipelineAsync({
+    layout:postPipelineLayout,vertex:{module,entryPoint:'vs'},
+    fragment:{module,entryPoint,targets:[{format:target}]},primitive:{topology:'triangle-list'}
+  })));
+  createGpuTimer();
+  createSandResources();
+  createNoiseResources();
+  holdBallPocket(true);
+  initialized=true;
+  invalidate();
+}
+init().catch(fail);
+</script>
+</body>
+</html>
